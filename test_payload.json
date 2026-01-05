@@ -1,0 +1,21 @@
+{
+  "spec": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "corvallis",
+    "variables": ["OBM", "PC"],
+    "start_date": "2024-07-01",
+    "end_date": "2024-07-05",
+    "interval": "daily",
+    "chart_type": "line"
+  },
+  "data": {
+    "records": [
+      {"datetime": "2024-07-01T00:00:00", "OBM": 18.2, "PC": 0.0},
+      {"datetime": "2024-07-02T00:00:00", "OBM": 17.9, "PC": 1.2},
+      {"datetime": "2024-07-03T00:00:00", "OBM": 19.1, "PC": 0.0},
+      {"datetime": "2024-07-04T00:00:00", "OBM": 20.0, "PC": 0.3},
+      {"datetime": "2024-07-05T00:00:00", "OBM": 18.7, "PC": 0.0}
+    ]
+  }
+}
