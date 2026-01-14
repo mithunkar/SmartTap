@@ -10,6 +10,7 @@ __pycache__/
 venv/
 env/
 ENV/
+.DS_Store
 
 # IDE
 .vscode/
