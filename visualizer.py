@@ -7,8 +7,12 @@ import matplotlib.pyplot as plt
 
 
 VAR_LABELS = {
-    "OBM": "Air Temp (°C)",
+    "OBM": "Avg Temp (°F)",
+    "MX": "Max Temp (°F)",
+    "MN": "Min Temp (°F)",
     "PC": "Precipitation (mm)",
+    "SR": "Solar Radiation (Langleys)",
+    "WS": "Wind Speed (mph)",
     "TU": "Humidity (%)",
     "ET": "Evapotranspiration (mm)",
 }
