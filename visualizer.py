@@ -67,12 +67,17 @@ def choose_view(df: pd.DataFrame, variables: List[str], chart_type: str) -> Dict
     vars_ = variables[:]
 
     if len(vars_) <= 1:
-        return {"mode": "single", "vars": vars_}
+        return {"mode": "single", "vars": vars_, "reason": "Only one variable requested → single-axis."}
 
     ranges = {v: _range(df[v]) for v in vars_}
     nonzero = [r for r in ranges.values() if r > 0]
     if not nonzero:
-        return {"mode": "single", "vars": [vars_[0]]}
+        return {
+            "mode": "single",
+            "vars": [vars_[0]],
+            "reason": "All variable ranges are 0 (flat series) → using first variable on single-axis."
+        }
+
 
     rmax = max(nonzero)
     rmin = min(nonzero)
@@ -82,116 +87,117 @@ def choose_view(df: pd.DataFrame, variables: List[str], chart_type: str) -> Dict
         if ratio >= 5.0:
             left = max(vars_, key=lambda v: ranges[v])
             right = min(vars_, key=lambda v: ranges[v])
-            return {"mode": "dual_axis", "left": left, "right": right}
-        return {"mode": "single", "vars": vars_}
+            return {"mode": "dual_axis", "left": left, "right": right,"reason": f"Two variables with scale ratio {ratio:.2f} ≥ 5 → dual-axis (left={left}, right={right})."}
+        return {"mode": "single", "vars": vars_,"reason": f"Two variables with similar scales (ratio {ratio:.2f} < 5) → single-axis."}
 
-    return {"mode": "facet", "vars": vars_}
+    return {"mode": "facet", "vars": vars_,"reason": "3+ variables requested → faceted small multiples."}
 
 
 def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
- spec, df, vars_ = payload_to_df(payload)
- chart_type = (spec.get("chart_type") or "line").lower()
- view = choose_view(df, vars_, chart_type)
+    spec, df, vars_ = payload_to_df(payload)
+    chart_type = (spec.get("chart_type") or "line").lower()
+    view = choose_view(df, vars_, chart_type)
 
- title = spec.get("title") or f"{spec.get('location','').title()} • {spec.get('dataset','').upper()}"
- mark = "bar" if chart_type == "bar" else "line"
+    title = spec.get("title") or f"{spec.get('location','').title()} • {spec.get('dataset','').upper()}"
+    mark = "bar" if chart_type == "bar" else "line"
 
- # long format (used for single + facet)
- use_vars = view.get("vars", vars_)
- long_df = df.reset_index().melt(
-     id_vars=["datetime"],
-     value_vars=use_vars,
-     var_name="variable",
-     value_name="value"
- )
+    # long format (used for single + facet)
+    use_vars = view.get("vars", vars_)
+    long_df = df.reset_index().melt(
+        id_vars=["datetime"],
+        value_vars=use_vars,
+        var_name="variable",
+        value_name="value"
+    )
 
- if view["mode"] == "single":
-     return {
-         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-         "title": title,
-         "data": {"values": _json_safe_records(long_df)},
-         "mark": {"type": mark},
-         "encoding": {
-             "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
-             "y": {"field": "value", "type": "quantitative", "title": "Value"},
-             "color": {"field": "variable", "type": "nominal", "title": "Variable"},
-             "tooltip": [
-                 {"field": "datetime", "type": "temporal"},
-                 {"field": "variable", "type": "nominal"},
-                 {"field": "value", "type": "quantitative"},
-             ],
-         },
-     }
+    if view["mode"] == "single":
+        return {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "title": title,
+            "data": {"values": _json_safe_records(long_df)},
+            "mark": {"type": mark},
+            "encoding": {
+                "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
+                "y": {"field": "value", "type": "quantitative", "title": "Value"},
+                "color": {"field": "variable", "type": "nominal", "title": "Variable"},
+                "tooltip": [
+                    {"field": "datetime", "type": "temporal"},
+                    {"field": "variable", "type": "nominal"},
+                    {"field": "value", "type": "quantitative"},
+                ],
+            },
+        }
 
- if view["mode"] == "dual_axis":
-     left = view["left"]
-     right = view["right"]
+    if view["mode"] == "dual_axis":
+        left = view["left"]
+        right = view["right"]
 
-     left_data = df[[left]].reset_index().rename(columns={left: "value"})
-     left_data["variable"] = left
+        left_data = df[[left]].reset_index().rename(columns={left: "value"})
+        left_data["variable"] = left
 
-     right_data = df[[right]].reset_index().rename(columns={right: "value"})
-     right_data["variable"] = right
+        right_data = df[[right]].reset_index().rename(columns={right: "value"})
+        right_data["variable"] = right
 
-     return {
-         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-         "title": title,
-         "resolve": {"scale": {"y": "independent"}},
-         "layer": [
-             {
-                 "data": {"values": _json_safe_records(left_data)},
-                 "mark": {"type": mark},
-                 "encoding": {
-                     "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
-                     "y": {"field": "value", "type": "quantitative", "title": _label(left)},
-                     "tooltip": [
-                         {"field": "datetime", "type": "temporal"},
-                         {"field": "variable", "type": "nominal"},
-                         {"field": "value", "type": "quantitative"},
-                     ],
-                 },
-             },
-             {
-                 "data": {"values": _json_safe_records(right_data)},
-                 "mark": {"type": mark},
-                 "encoding": {
-                     "x": {"field": "datetime", "type": "temporal"},
-                     "y": {
-                         "field": "value",
-                         "type": "quantitative",
-                         "title": _label(right),
-                         "axis": {"orient": "right"},
-                     },
-                     "tooltip": [
-                         {"field": "datetime", "type": "temporal"},
-                         {"field": "variable", "type": "nominal"},
-                         {"field": "value", "type": "quantitative"},
-                     ],
-                 },
-             },
-         ],
-     }
+        return {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "title": title,
+            "resolve": {"scale": {"y": "independent"}},
+            "layer": [
+                {
+                    "data": {"values": _json_safe_records(left_data)},
+                    "mark": {"type": mark},
+                    "encoding": {
+                        "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
+                        "y": {"field": "value", "type": "quantitative", "title": _label(left)},
+                        "tooltip": [
+                            {"field": "datetime", "type": "temporal"},
+                            {"field": "variable", "type": "nominal"},
+                            {"field": "value", "type": "quantitative"},
+                        ],
+                    },
+                },
+                {
+                    "data": {"values": _json_safe_records(right_data)},
+                    "mark": {"type": mark},
+                    "encoding": {
+                        "x": {"field": "datetime", "type": "temporal"},
+                        "y": {
+                            "field": "value",
+                            "type": "quantitative",
+                            "title": _label(right),
+                            "axis": {"orient": "right"},
+                        },
+                        "tooltip": [
+                            {"field": "datetime", "type": "temporal"},
+                            {"field": "variable", "type": "nominal"},
+                            {"field": "value", "type": "quantitative"},
+                        ],
+                    },
+                },
+            ],
+        }
 
- # facet
- return {
-     "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-     "title": title,
-     "data": {"values": _json_safe_records(long_df)},
-     "facet": {"field": "variable", "type": "nominal"},
-     "spec": {
-         "mark": {"type": mark},
-         "encoding": {
-             "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
-             "y": {"field": "value", "type": "quantitative", "title": "Value"},
-             "tooltip": [
-                 {"field": "datetime", "type": "temporal"},
-                 {"field": "variable", "type": "nominal"},
-                 {"field": "value", "type": "quantitative"},
-             ],
-         },
-     },
-     "columns": 1,
- }
+    # facet
+    return {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": title,
+        "data": {"values": _json_safe_records(long_df)},
+        "facet": {"field": "variable", "type": "nominal"},
+        "spec": {
+            "mark": {"type": mark},
+            "encoding": {
+                "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
+                "y": {"field": "value", "type": "quantitative", "title": "Value"},
+                "tooltip": [
+                    {"field": "datetime", "type": "temporal"},
+                    {"field": "variable", "type": "nominal"},
+                    {"field": "value", "type": "quantitative"},
+                ],
+            },
+        },
+        "columns": 1,
+    }
+
 
 def png_bytes(payload: Dict[str, Any]) -> bytes:
     spec, df, vars_ = payload_to_df(payload)
@@ -205,15 +211,45 @@ def png_bytes(payload: Dict[str, Any]) -> bytes:
 
     if view["mode"] == "single":
         ax = fig.add_subplot(111)
+        if not view.get("vars"):
+            raise ValueError(f"No variables to plot. Spec variables={spec.get('variables')} df_cols={list(df.columns)}")
+        v = view["vars"][0]
+
+        v = view["vars"][0]
+
         if chart_type == "bar":
-            v = view["vars"][0]
             ax.bar(df.index, df[v])
             ax.set_ylabel(_label(v))
+
+        elif chart_type == "scatter":
+            ax.scatter(df.index, df[v])
+            ax.set_ylabel(_label(v))
+
+        elif chart_type == "area":
+            ax.fill_between(df.index, df[v])
+            ax.set_ylabel(_label(v))
+
+        elif chart_type == "histogram":
+            ax.hist(df[v].dropna(), bins=30)
+            ax.set_xlabel(_label(v))
+            ax.set_ylabel("Frequency")
+
+        elif chart_type == "box":
+            ax.boxplot(df[v].dropna(), vert=True)
+            ax.set_ylabel(_label(v))
+    
         else:
             for v in view["vars"]:
-                ax.plot(df.index, df[v], label=v)
-            ax.legend(loc="upper left")
-            ax.set_ylabel("Value")
+                ax.plot(df.index, df[v], label=_label(v))
+
+            if len(view["vars"]) == 1:
+                ax.set_ylabel(_label(view["vars"][0]))
+                # optional: hide legend when only one variable
+                # ax.legend().remove()
+            else:
+                ax.set_ylabel("Value")
+                ax.legend(loc="upper left")
+
         ax.set_xlabel("Date/Time")
 
     elif view["mode"] == "dual_axis":
@@ -250,6 +286,17 @@ def png_bytes(payload: Dict[str, Any]) -> bytes:
                 ax.set_xlabel("Date/Time")
 
     fig.autofmt_xdate()
+        
+    # Keep x-axis within requested range to avoid tick drift into next month
+    if spec.get("start_date") and spec.get("end_date"):
+        start = pd.to_datetime(spec["start_date"])
+        end = pd.to_datetime(spec["end_date"])
+        if view["mode"] == "dual_axis":
+            ax1.set_xlim(start, end)
+        else:
+            ax.set_xlim(start, end)
+
+
     fig.tight_layout(rect=[0, 0.02, 1, 0.92])
 
     buf = io.BytesIO()

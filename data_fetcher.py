@@ -100,6 +100,11 @@ def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         result_df = pd.DataFrame({'datetime': df['datetime']})
         
         for var in variables:
+                    # ✅ FAIL FAST: ensure requested variables were actually produced
+            
+
+            
+
             if var == "OBM":
                 #calculate average temperature from min/max (keep in Fahrenheit)
                 result_df['OBM'] = ((df['max_temp_f'] + df['min_temp_f']) / 2).round(2)
@@ -123,6 +128,16 @@ def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
                 print(f"{var} (Humidity) not available in local data, skipping")
             else:
                 print(f"Variable {var} not recognized")
+            
+        requested = variables or []
+        present = set(result_df.columns) - {"datetime"}
+        missing = [v for v in requested if v not in present]
+
+        if missing:
+                raise ValueError(
+                    f"Requested variables missing from local agrimet data: {missing}. "
+                    f"Present: {sorted(present)}"
+                )
         
         # Handle intervals
         if interval == "monthly":
@@ -163,6 +178,17 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     
     # For now, generate sample ET data
     # In the future, you can add actual ET data to your local files
+
+    requested_vars = spec.get("variables", []) or []
+    unsupported = [v for v in requested_vars if v != "ET"]
+    if unsupported:
+        raise ValueError(
+            f"OpenET placeholder only supports ET locally. "
+            f"Requested unsupported variables: {unsupported}. "
+            f"Tip: run the query without those variables, or use dataset='agrimet' for temps/rain."
+        )
+
+
     start_date = spec.get("start_date")
     end_date = spec.get("end_date")
     
