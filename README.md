@@ -364,19 +364,3 @@ The chart title is generated from the spec. If it says "Corvallis" but you queri
 3. Look at `outputs/validation/*_validation.json` for data quality issues
 4. Try a simpler query first: `"Show me temperature in Corvallis for 2020"`
 
-## Contributing
-
-This project was created for Smart-TAP (Smart Technology for Agricultural Precision). To contribute:
-
-1. Test queries and report issues
-2. Add support for more OpenET watersheds
-3. Improve LLM prompt engineering for better query parsing
-4. Add multi-location comparison features
-
-## License
-
-See LICENSE file for details.
-
----
-
-**Project Status:** Active development. OpenET integration is new - expect bugs and improvements!
