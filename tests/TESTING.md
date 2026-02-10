@@ -129,7 +129,7 @@ python3 tests/model_comparison.py --quick --performance
 **Output:**
 - Accuracy comparison (% of test cases parsed correctly)
 - Speed comparison (average parse time)
-- Grade for each model (🏆 Excellent, ✅ Very Good, 👍 Good)
+- Grade for each model (Excellent, Very Good, Good)
 - Recommended best model
 
 Results saved to `evaluation_results/model_comparison_YYYYMMDD_HHMMSS.json`
@@ -168,24 +168,24 @@ Queries tested:
 ## Success Criteria
 
 ### Unit Tests
-- ✅ All data fetching tests pass
-- ✅ Date filtering works correctly
-- ✅ Invalid inputs raise appropriate errors
+- All data fetching tests pass
+- Date filtering works correctly
+- Invalid inputs raise appropriate errors
 
 ### LLM Accuracy
-- ✅ ≥70% parsing accuracy (acceptable)
-- ✅ ≥90% parsing accuracy (excellent)
-- ✅ Dataset routing is 100% correct
+- ≥70% parsing accuracy (acceptable)
+- ≥90% parsing accuracy (excellent)
+- Dataset routing is 100% correct
 
 ### Performance
-- ✅ Average query time < 15s (good)
-- ✅ Average query time < 25s (acceptable)
-- ✅ No query should take > 30s
+- Average query time < 15s (good)
+- Average query time < 25s (acceptable)
+- No query should take > 30s
 
 ### Integration
-- ✅ Full pipeline completes without errors
-- ✅ Chart generation produces valid PNG
-- ✅ Vega spec is valid JSON
+- Full pipeline completes without errors
+- Chart generation produces valid PNG
+- Vega spec is valid JSON
 
 ## Adding New Tests
 
@@ -260,7 +260,7 @@ Successful: 5/5
 Average time: 12.34s
 Min time: 8.21s
 Max time: 18.67s
-✅ Performance: GOOD (avg < 15s)
+Performance: GOOD (avg < 15s)
 ```
 
 ### Accuracy Report
@@ -268,7 +268,7 @@ Max time: 18.67s
 ```
 LLM PARSING ACCURACY: 6/7 (85.7%)
 ======================================================================
-❌ agrimet_bar_chart: Field 'chart_type' expected 'bar', got 'line'
+FAIL agrimet_bar_chart: Field 'chart_type' expected 'bar', got 'line'
 ```
 
 ### Evaluation JSON

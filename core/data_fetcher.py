@@ -344,7 +344,7 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         )
         df = pd.read_csv(OPENET_HUC_COMBINED)
 
-        # Our combine script adds datetime; fallback just in case.
+        # Ensure datetime column exists
         if "datetime" not in df.columns:
             if "year" in df.columns:
                 df["month"] = pd.to_numeric(df.get("month", 1), errors="coerce").fillna(1).astype(int)

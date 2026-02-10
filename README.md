@@ -162,10 +162,10 @@ outputs/
 ```
 
 The terminal output displays:
-- ✅ File paths for generated charts
-- 📊 Data quality warnings (if any)
-- 💡 Suggested follow-up questions
-- 🔗 Direct link to view interactive chart
+- File paths for generated charts
+- Data quality warnings (if any)
+- Suggested follow-up questions
+- Direct link to view interactive chart
 
 ## Project Structure
 
@@ -272,13 +272,13 @@ Results are saved to `evaluation_results/` with timestamps for tracking over tim
 
 ## Features
 
-✅ **Natural Language Queries** - Ask questions in plain English  
-✅ **Smart Dataset Routing** - Automatically selects AgriMet or OpenET based on query  
-✅ **Multi-format Output** - PNG charts + interactive Vega-Lite specs  
-✅ **Data Validation** - Quality checks with warnings for missing/suspicious data  
-✅ **AI Follow-ups** - Suggests relevant next questions  
-✅ **Session Memory** - (Coming soon) Conversational refinement of charts  
-✅ **Flexible Visualizations** - Single-axis, dual-axis, or faceted plots  
+- **Natural Language Queries** - Ask questions in plain English  
+- **Smart Dataset Routing** - Automatically selects AgriMet or OpenET based on query  
+- **Multi-format Output** - PNG charts + interactive Vega-Lite specs  
+- **Data Validation** - Quality checks with warnings for missing/suspicious data  
+- **AI Follow-ups** - Suggests relevant next questions  
+- **Session Memory** - (Coming soon) Conversational refinement of charts  
+- **Flexible Visualizations** - Single-axis, dual-axis, or faceted plots  
 
 ## Current Limitations
 

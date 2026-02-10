@@ -166,7 +166,7 @@ def gpkg_to_csv_and_long(gpkg_path: str, out_dir: str, pivot: int = 24) -> None:
         long_df.to_csv(long_path, index=False)
         print(f"Saved long CSV: {long_path}  (rows={len(long_df)}, cols={len(long_df.columns)})")
 
-    print("\nDone ✅")
+    print("\nDone")
 
 
 if __name__ == "__main__":

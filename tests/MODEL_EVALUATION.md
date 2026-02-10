@@ -61,21 +61,21 @@ MULTI-MODEL EVALUATION
 ======================================================================
 Testing 3 models...
 
-🔬 Testing: Gemma 2 (2B)
+Testing: Gemma 2 (2B)
    ------------------------------------------------------------
-   ✅ agrimet_temp_simple (4.21s)
-   ✅ agrimet_precip_simple (3.89s)
+   PASS agrimet_temp_simple (4.21s)
+   PASS agrimet_precip_simple (3.89s)
    ...
 
 COMPARISON SUMMARY
 ======================================================================
 Model                          Accuracy     Avg Parse    Grade     
 ----------------------------------------------------------------------
-Llama 3.2 (3B)                 100.0%       3.45s       🏆 Excellent
-Gemma 2 (2B)                   100.0%       4.12s       🏆 Excellent
-Phi-3 Mini (3.8B)              85.7%        2.89s       ✅ Very Good
+Llama 3.2 (3B)                 100.0%       3.45s       Excellent
+Gemma 2 (2B)                   100.0%       4.12s       Excellent
+Phi-3 Mini (3.8B)              85.7%        2.89s       Very Good
 
-🥇 BEST MODEL: Llama 3.2 (3B)
+BEST MODEL: Llama 3.2 (3B)
    Accuracy: 100.0%
    Speed: 3.45s average parse time
    Correct: 7/7 test cases
@@ -135,10 +135,10 @@ This adds:
 
 ### Grade System
 
-- 🏆 **Excellent**: ≥95% accuracy
-- ✅ **Very Good**: ≥85% accuracy
-- 👍 **Good**: ≥70% accuracy
-- ⚠️ **Fair**: <70% accuracy
+- **Excellent**: ≥95% accuracy
+- **Very Good**: ≥85% accuracy
+- **Good**: ≥70% accuracy
+- **Fair**: <70% accuracy
 
 ## Results Storage
 

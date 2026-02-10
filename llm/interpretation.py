@@ -70,7 +70,7 @@ Output ONLY valid JSON. No explanations."""
 
 
 if __name__ == "__main__":
-    #test queries
+    # Test queries
     queries = ["Show me a pie chart of the rain in Portland and Madras.",
                "Show me the temperature in Corvallis from Jan 1 to Jan 5 2024.",
                "Can I see a rainfall chart for Madras for the month of July 2024?",

@@ -98,19 +98,19 @@ class PerformanceEvaluator:
         
         results = []
         for query in benchmark_queries:
-            print(f"\n📊 Testing: {query}")
+            print(f"\nTesting: {query}")
             result = self.measure_query_time(query)
             results.append(result)
             
             if result["success"]:
-                print(f"   ✅ Success in {result['total_time']}s")
+                print(f"   Success in {result['total_time']}s")
                 print(f"      Parse: {result['parse_time']}s | Fetch: {result['fetch_time']}s | "
                       f"Viz: {result['viz_time']}s")
                 print(f"      Records: {result['record_count']} | PNG: {result['png_size_kb']:.1f} KB")
                 if result['warnings'] > 0:
-                    print(f"      ⚠️  {result['warnings']} validation warnings")
+                    print(f"      {result['warnings']} validation warnings")
             else:
-                print(f"   ❌ Failed: {result['error']}")
+                print(f"   Failed: {result['error']}")
         
         # Calculate statistics
         successful = [r for r in results if r["success"]]
@@ -130,11 +130,11 @@ class PerformanceEvaluator:
             
             # Check against thresholds
             if avg_time < 15:
-                print("✅ Performance: GOOD (avg < 15s)")
+                print("Performance: GOOD (avg < 15s)")
             elif avg_time < 25:
-                print("⚠️  Performance: ACCEPTABLE (avg < 25s)")
+                print("Performance: ACCEPTABLE (avg < 25s)")
             else:
-                print("❌ Performance: NEEDS IMPROVEMENT (avg >= 25s)")
+                print("Performance: NEEDS IMPROVEMENT (avg >= 25s)")
         
         return {
             "timestamp": datetime.now().isoformat(),
@@ -196,12 +196,12 @@ class PerformanceEvaluator:
                 
                 if matches:
                     correct += 1
-                    print(f"✅ {test_case['id']}")
+                    print(f"PASS {test_case['id']}")
                 else:
-                    print(f"❌ {test_case['id']}")
+                    print(f"FAIL {test_case['id']}")
                     
             except Exception as e:
-                print(f"❌ {test_case['id']}: {str(e)}")
+                print(f"ERROR {test_case['id']}: {str(e)}")
                 errors.append({"query": query, "error": str(e)})
         
         accuracy = correct / total if total > 0 else 0
@@ -229,7 +229,7 @@ def main():
     current_model = get_model_name()
     model_display = get_model_display_name(current_model)
     
-    print(f"\n🤖 Testing Model: {model_display} ({current_model})")
+    print(f"\nTesting Model: {model_display} ({current_model})")
     
     evaluator = PerformanceEvaluator()
     
@@ -264,7 +264,7 @@ def main():
             "accuracy": accuracy_results
         }, f, indent=2)
     
-    print(f"\n📁 Results saved to: {output_file}")
+    print(f"\nResults saved to: {output_file}")
     
     # Overall grade
     print("\n" + "="*70)
@@ -272,28 +272,28 @@ def main():
     print("="*70)
     
     if perf_results["summary"]["successful"] == perf_results["summary"]["total_tests"]:
-        print("✅ Reliability: 100% success rate")
+        print("Reliability: 100% success rate")
     else:
         success_rate = perf_results["summary"]["successful"] / perf_results["summary"]["total_tests"]
-        print(f"⚠️  Reliability: {success_rate:.1%} success rate")
+        print(f"Reliability: {success_rate:.1%} success rate")
     
     if accuracy_results.get("accuracy"):
         acc = accuracy_results["accuracy"]
         if acc >= 0.9:
-            print(f"✅ LLM Accuracy: {acc:.1%} (Excellent)")
+            print(f"LLM Accuracy: {acc:.1%} (Excellent)")
         elif acc >= 0.7:
-            print(f"⚠️  LLM Accuracy: {acc:.1%} (Good)")
+            print(f"LLM Accuracy: {acc:.1%} (Good)")
         else:
-            print(f"❌ LLM Accuracy: {acc:.1%} (Needs Improvement)")
+            print(f"LLM Accuracy: {acc:.1%} (Needs Improvement)")
     
     avg_time = perf_results["summary"].get("avg_time")
     if avg_time:
         if avg_time < 15:
-            print(f"✅ Performance: {avg_time:.2f}s average (Fast)")
+            print(f"Performance: {avg_time:.2f}s average (Fast)")
         elif avg_time < 25:
-            print(f"⚠️  Performance: {avg_time:.2f}s average (Acceptable)")
+            print(f"Performance: {avg_time:.2f}s average (Acceptable)")
         else:
-            print(f"❌ Performance: {avg_time:.2f}s average (Slow)")
+            print(f"Performance: {avg_time:.2f}s average (Slow)")
 
 
 if __name__ == "__main__":

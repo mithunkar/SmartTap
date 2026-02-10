@@ -62,15 +62,15 @@ class TestLLMParsing(unittest.TestCase):
                     try:
                         self._check_field(result, expected, field, test_id)
                     except AssertionError as e:
-                        errors.append(f"❌ {test_id}: {str(e)}")
+                        errors.append(f"FAIL {test_id}: {str(e)}")
                         failed += 1
                         break
                 else:
-                    print(f"✅ {test_id}: PASS")
+                    print(f"PASS {test_id}")
                     passed += 1
                     
             except Exception as e:
-                errors.append(f"❌ {test_id}: EXCEPTION: {str(e)}")
+                errors.append(f"ERROR {test_id}: {str(e)}")
                 failed += 1
         
         # Print summary

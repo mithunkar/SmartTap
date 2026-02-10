@@ -25,7 +25,7 @@ def test_routing():
     print("="*70)
     
     for query, expected_dataset in queries:
-        print(f'\n🔍 Query: "{query}"')
+        print(f'\nQuery: "{query}"')
         print(f'   Expected: {expected_dataset}')
         
         try:
@@ -34,16 +34,16 @@ def test_routing():
             
             # Check for errors first
             if 'error' in result:
-                print(f'   ❌ ERROR: {result.get("error")}')
+                print(f'   ERROR: {result.get("error")}')
                 print(f'      Details: {result.get("details")}')
                 print(f'      Raw response: {result.get("raw", "N/A")[:200]}...')
                 continue
             
             # Check if routing is correct
             if actual_dataset == expected_dataset:
-                print(f'   ✅ PASS: {actual_dataset}')
+                print(f'   PASS: {actual_dataset}')
             else:
-                print(f'   ❌ FAIL: Got {actual_dataset}, expected {expected_dataset}')
+                print(f'   FAIL: Got {actual_dataset}, expected {expected_dataset}'))
                 # Show full result for debugging
                 if actual_dataset == 'N/A':
                     print(f'      DEBUG: Full result = {json.dumps(result, indent=8)}')
@@ -59,7 +59,7 @@ def test_routing():
             print(f'      Interval: {result.get("interval", "N/A")}')
             
         except Exception as e:
-            print(f'   ❌ ERROR: {e}')
+            print(f'   ERROR: {e}')
     
     print("\n" + "="*70)
     print("SUMMARY: Dataset selection based on VARIABLE type:")

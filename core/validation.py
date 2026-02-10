@@ -100,7 +100,7 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
         if "average" in q or "avg" in q or "mean" in q:
             if "temp" in q:
                 inferred.append("OBM")
-        # If user just says "temperature"
+        # Default temperature variable
         if "temp" in q or "temperature" in q:
             if not inferred:
                 inferred.append("OBM")

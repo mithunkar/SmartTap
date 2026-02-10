@@ -54,7 +54,7 @@ class MultiModelEvaluator:
     
     def evaluate_model_accuracy(self, model_name, test_cases):
         """Evaluate a single model's parsing accuracy"""
-        print(f"\n🔬 Testing: {get_model_display_name(model_name)}")
+        print(f"\nTesting: {get_model_display_name(model_name)}")
         print("   " + "-"*60)
         
         # Set the model for this test run
@@ -88,9 +88,9 @@ class MultiModelEvaluator:
                 
                 if matches:
                     correct += 1
-                    print(f"   ✅ {test_id} ({parse_time:.2f}s)")
+                    print(f"   PASS {test_id} ({parse_time:.2f}s)")
                 else:
-                    print(f"   ❌ {test_id} - field '{failed_field}' mismatch")
+                    print(f"   FAIL {test_id} - field '{failed_field}' mismatch")
                     errors.append({
                         "test_id": test_id,
                         "field": failed_field,
@@ -99,7 +99,7 @@ class MultiModelEvaluator:
                     })
                     
             except Exception as e:
-                print(f"   ❌ {test_id} - exception: {str(e)}")
+                print(f"   ERROR {test_id} - exception: {str(e)}")
                 errors.append({"test_id": test_id, "error": str(e)})
         
         accuracy = correct / total if total > 0 else 0
@@ -145,7 +145,7 @@ class MultiModelEvaluator:
                 total_times.append(total_time)
                 
             except Exception as e:
-                print(f"   ⚠️  Query failed: {e}")
+                print(f"   Query failed: {e}")
         
         return {
             "avg_total_time": round(sum(total_times) / len(total_times), 2) if total_times else None,
@@ -161,17 +161,17 @@ class MultiModelEvaluator:
         # Check which models are installed
         installed_models = get_installed_models()
         if installed_models:
-            print(f"📦 Installed models: {', '.join(installed_models)}")
+            print(f"Installed models: {', '.join(installed_models)}")
         else:
-            print("⚠️  Could not detect installed models")
+            print("Could not detect installed models")
         
         # Check if any test models are missing
         missing = [m for m in self.models if m not in installed_models]
         if missing and installed_models:
-            print(f"⚠️  Missing models (will skip): {', '.join(missing[:3])}")
+            print(f"Missing models (will skip): {', '.join(missing[:3])}")
             if len(missing) > 3:
                 print(f"   ... and {len(missing)-3} more")
-            print(f"\n💡 Install missing models: ollama pull <model-name>")
+            print(f"\nInstall missing models: ollama pull <model-name>")
         
         print(f"\nTesting {len(self.models)} models...")
         
@@ -191,7 +191,7 @@ class MultiModelEvaluator:
                 self.results[model_name] = accuracy_result
                 
             except Exception as e:
-                print(f"   ❌ Model failed: {e}")
+                print(f"   Model failed: {e}")
                 self.results[model_name] = {
                     "model": model_name,
                     "error": str(e)
@@ -231,20 +231,20 @@ class MultiModelEvaluator:
                 
                 # Grade
                 if accuracy >= 0.95:
-                    grade = "🏆 Excellent"
+                    grade = "Excellent"
                 elif accuracy >= 0.85:
-                    grade = "✅ Very Good"
+                    grade = "Very Good"
                 elif accuracy >= 0.70:
-                    grade = "👍 Good"
+                    grade = "Good"
                 else:
-                    grade = "⚠️  Fair"
+                    grade = "Fair"
                 
                 parse_time_str = f"{parse_time:>5.2f}s" if parse_time else "  N/A  "
                 print(f"{display_name:<30} {accuracy:>6.1%}       {parse_time_str}       {grade}")
         
         # Show failed models
         if failed:
-            print(f"\n❌ Failed Models ({len(failed)}):")
+            print(f"\nFailed Models ({len(failed)}):")
             for model_name, data in failed:
                 display_name = get_model_display_name(model_name)
                 error = data.get("error", "Unknown error")
@@ -257,7 +257,7 @@ class MultiModelEvaluator:
         if sorted_results:
             best_model = sorted_results[0]
             print("\n" + "="*70)
-            print(f"🥇 BEST MODEL: {best_model[1]['display_name']}")
+            print(f"BEST MODEL: {best_model[1]['display_name']}")
             print(f"   Accuracy: {best_model[1]['accuracy']:.1%}")
             print(f"   Speed: {best_model[1]['avg_parse_time']:.2f}s average parse time")
             print(f"   Correct: {best_model[1]['correct']}/{best_model[1]['total']} test cases")
@@ -277,7 +277,7 @@ class MultiModelEvaluator:
                 "results": self.results
             }, f, indent=2)
         
-        print(f"\n📁 Results saved to: {output_file}")
+        print(f"\nResults saved to: {output_file}")
         return output_file
 
 
@@ -295,7 +295,7 @@ def main():
     if args.auto_detect:
         installed = get_installed_models()
         if not installed:
-            print("❌ No models detected. Make sure ollama is running:")
+            print("No models detected. Make sure ollama is running:")
             print("   ollama serve")
             print("   ollama pull gemma3")
             return 1
@@ -326,12 +326,12 @@ def main():
         evaluator.print_summary()
         evaluator.save_results()
     except KeyboardInterrupt:
-        print("\n\n⚠️  Evaluation interrupted")
+        print("\n\nEvaluation interrupted")
         if evaluator.results:
             evaluator.print_summary()
             evaluator.save_results()
     except Exception as e:
-        print(f"\n❌ Evaluation failed: {e}")
+        print(f"\nEvaluation failed: {e}")
         import traceback
         traceback.print_exc()
         return 1

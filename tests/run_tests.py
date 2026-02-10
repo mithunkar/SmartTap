@@ -37,10 +37,10 @@ def run_all_tests():
     print(f"Errors: {len(result.errors)}")
     
     if result.wasSuccessful():
-        print("\n✅ ALL TESTS PASSED")
+        print("\nALL TESTS PASSED")
         return 0
     else:
-        print("\n❌ SOME TESTS FAILED")
+        print("\nSOME TESTS FAILED")
         return 1
 
 
@@ -64,6 +64,6 @@ if __name__ == "__main__":
     try:
         run_evaluation()
     except Exception as e:
-        print(f"\n⚠️  Evaluation metrics failed: {e}")
+        print(f"\nEvaluation metrics failed: {e}")
     
     sys.exit(test_result)

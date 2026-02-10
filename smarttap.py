@@ -31,11 +31,11 @@ def run_pipeline(query: str, spec: dict, base: str, chart_dir: Path, validation_
         json.dump(report, f, indent=2)
 
     if not report["ok"]:
-        print(f"❌ Validation failed. See: {validation_file}")
+        print(f"Validation failed. See: {validation_file}")
         return None
 
     if report.get("warnings"):
-        print("⚠️ Validation warnings:")
+        print("Validation warnings:")
         for w in report["warnings"]:
             print(" -", w)
 
@@ -133,8 +133,8 @@ def process_query(query: str):
     if out is None:
         return None
 
-    print(f"✅ PNG: {out['png']}")
-    print(f"✅ Vega: {out['vega']}")
+    print(f"PNG: {out['png']}")
+    print(f"Vega: {out['vega']}")
     print("   View at: https://vega.github.io/editor/")
 
     fqs = out.get("followups") or []
@@ -223,8 +223,8 @@ def session():
             last_query = None
             continue
 
-        print(f"✅ PNG: {out['png']}")
-        print(f"✅ Vega: {out['vega']}")
+        print(f"PNG: {out['png']}")
+        print(f"Vega: {out['vega']}")
         print("   View at: https://vega.github.io/editor/")
 
         fqs = out.get("followups") or []
