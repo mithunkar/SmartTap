@@ -1,6 +1,7 @@
 import ollama
 import json
 from datetime import date
+from .config import get_model_name
 
 def get_task_specification(user_query):
 
@@ -35,9 +36,12 @@ If dataset is "openet" AND location is "klamath falls":
 
 Output ONLY valid JSON. No explanations."""
 
+    # Get configured model (defaults to gemma2:2b)
+    model_name = get_model_name()
+    
     #using json format to force structured output
     response = ollama.chat(
-        model='gemma3', 
+        model=model_name, 
         format='json',
         messages=[
             {'role': 'system', 'content': system_prompt},

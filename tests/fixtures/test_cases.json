@@ -1,0 +1,129 @@
+{
+  "llm_parsing_tests": [
+    {
+      "id": "agrimet_temp_simple",
+      "query": "Show me temperature in Corvallis for 2020",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "corvallis",
+        "variables": ["OBM"],
+        "start_date": "2020-01-01",
+        "end_date": "2020-12-31"
+      }
+    },
+    {
+      "id": "agrimet_precip_simple",
+      "query": "What was rainfall in Hood River for July 2024",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "hood river",
+        "variables": ["PC"]
+      }
+    },
+    {
+      "id": "openet_et_klamath",
+      "query": "Show me evapotranspiration in Klamath Falls for 2020",
+      "expected": {
+        "dataset": "openet",
+        "openet_geo": "huc8",
+        "huc8_code": "18010204",
+        "variables": ["ETa"]
+      }
+    },
+    {
+      "id": "openet_et_short",
+      "query": "ET in Klamath Falls last year",
+      "expected": {
+        "dataset": "openet",
+        "openet_geo": "huc8",
+        "huc8_code": "18010204",
+        "variables": ["ETa"]
+      }
+    },
+    {
+      "id": "agrimet_multi_var",
+      "query": "Show me max temp and precipitation in Pendleton",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "pendleton",
+        "variables": ["MX", "PC"]
+      }
+    },
+    {
+      "id": "agrimet_precip_vs_et",
+      "query": "Show me precipitation in Klamath Falls",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "klamath falls",
+        "variables": ["PC"],
+        "note": "Should use AgriMet, not OpenET, for precipitation"
+      }
+    },
+    {
+      "id": "agrimet_bar_chart",
+      "query": "Show monthly rainfall in Ontario for 2023 as a bar chart",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "ontario",
+        "variables": ["PC"],
+        "chart_type": "bar"
+      }
+    }
+  ],
+  "data_integrity_tests": [
+    {
+      "id": "agrimet_date_range",
+      "description": "Verify AgriMet data covers 2015-2025",
+      "location": "corvallis",
+      "check": "date_coverage"
+    },
+    {
+      "id": "openet_date_range",
+      "description": "Verify OpenET data covers 1984-2024",
+      "huc8_code": "18010204",
+      "check": "date_coverage"
+    },
+    {
+      "id": "agrimet_locations",
+      "description": "Verify all 5 AgriMet locations exist",
+      "expected_locations": ["corvallis", "pendleton", "hood river", "klamath falls", "ontario"]
+    }
+  ],
+  "visualization_tests": [
+    {
+      "id": "single_var_layout",
+      "query": "Show me temperature in Corvallis for January 2020",
+      "expected_view": {
+        "mode": "single"
+      }
+    },
+    {
+      "id": "dual_axis_layout",
+      "query": "Show me temperature and solar radiation in Corvallis for 2020",
+      "expected_view": {
+        "mode": "dual_axis",
+        "note": "Temperature and solar have different scales"
+      }
+    }
+  ],
+  "performance_benchmarks": [
+    {
+      "id": "simple_query_speed",
+      "query": "Show me temperature in Corvallis for 2020",
+      "max_time_seconds": 15,
+      "description": "Simple AgriMet query should complete in <15s"
+    },
+    {
+      "id": "openet_query_speed",
+      "query": "Show me ET in Klamath Falls for 2020",
+      "max_time_seconds": 20,
+      "description": "OpenET query with large dataset should complete in <20s"
+    },
+    {
+      "id": "multi_year_query",
+      "query": "Show me temperature in Corvallis from 2015 to 2020",
+      "max_time_seconds": 25,
+      "description": "Multi-year query should complete in <25s"
+    }
+  ]
+}

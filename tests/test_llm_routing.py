@@ -3,6 +3,12 @@
 Test LLM routing logic for AgriMet vs OpenET datasets
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from llm.interpretation import get_task_specification
 import json
 
