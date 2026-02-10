@@ -68,6 +68,37 @@
         "variables": ["PC"],
         "chart_type": "bar"
       }
+    },
+    {
+      "id": "agrimet_solar_radiation",
+      "query": "Show me solar radiation in Corvallis for 2020",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "corvallis",
+        "variables": ["SR"],
+        "start_date": "2020-01-01",
+        "end_date": "2020-12-31"
+      }
+    },
+    {
+      "id": "agrimet_wind_speed",
+      "query": "Show me wind speed in Pendleton",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "pendleton",
+        "variables": ["WS"]
+      }
+    },
+    {
+      "id": "agrimet_humidity",
+      "query": "What was the humidity in Hood River in 2021",
+      "expected": {
+        "dataset": "agrimet",
+        "location": "hood river",
+        "variables": ["TU"],
+        "start_date": "2021-01-01",
+        "end_date": "2021-12-31"
+      }
     }
   ],
   "data_integrity_tests": [

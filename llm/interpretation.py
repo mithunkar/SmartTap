@@ -12,9 +12,12 @@ def get_task_specification(user_query):
 STEP 1: Identify the variable
 - If query mentions "ET", "evapotranspiration" → Variable is ETa
 - If query mentions "precip", "rain", "rainfall" → Variable is PC  
+- If query mentions "solar", "solar radiation", "sun" → Variable is SR
+- If query mentions "wind", "wind speed" → Variable is WS
+- If query mentions "humidity", "relative humidity" → Variable is TU
 - If query mentions "temp", "temperature" (no max/min specified) → Variable is OBM
-- If query mentions "max temp", "high temp" → Variable is MX
-- If query mentions "min temp", "low temp" → Variable is MN
+- If query mentions "max temp", "high temp", "maximum temperature" → Variable is MX
+- If query mentions "min temp", "low temp", "minimum temperature" → Variable is MN
 
 STEP 2: Choose dataset based on variable
 - If variable is ETa → dataset = "openet"
@@ -23,9 +26,11 @@ STEP 2: Choose dataset based on variable
 STEP 3: Extract location (default: corvallis)
 Valid: corvallis, pendleton, hood river, klamath falls, ontario
 
-STEP 4: Extract dates
-Parse start_date and end_date from query. If just year given, use Jan 1 to Dec 31.
-If "last year", use {int(today.split('-')[0])-1}.
+STEP 4: Extract dates (REQUIRED - MUST include start_date and end_date)
+- If specific year mentioned (e.g. "2020", "in 2024") → "YYYY-01-01" to "YYYY-12-31"
+- If "last year" → "{int(today.split('-')[0])-1}-01-01" to "{int(today.split('-')[0])-1}-12-31"
+- If NO date mentioned → use full year 2024: "2024-01-01" to "2024-12-31"
+ALWAYS output complete year ranges with start_date and end_date.
 
 STEP 5: Build JSON
 If dataset is "agrimet":
@@ -33,6 +38,10 @@ If dataset is "agrimet":
 
 If dataset is "openet" AND location is "klamath falls":
 {{"task": "visualize_timeseries", "dataset": "openet", "openet_geo": "huc8", "huc8_code": "18010204", "variables": ["ETa"], "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "interval": "monthly", "chart_type": "line"}}
+
+EXAMPLES:
+Query: "show me solar radiation in corvallis" → {{"dataset": "agrimet", "location": "corvallis", "variables": ["SR"], "start_date": "2024-01-01", "end_date": "2024-12-31"}}
+Query: "temperature in corvallis in 2020" → {{"dataset": "agrimet", "location": "corvallis", "variables": ["OBM"], "start_date": "2020-01-01", "end_date": "2020-12-31"}}
 
 Output ONLY valid JSON. No explanations."""
 
