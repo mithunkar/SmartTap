@@ -3,12 +3,12 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from llm_interpretation_module import get_task_specification
-from data_fetcher import fetch_data
-from visualizer import png_bytes, vega_spec, payload_to_df, choose_view
-from validation import validate_payload, validate_and_fix_spec
-from llm_followups import generate_followups_with_gemma
-from llm_session_update import spec_patch_from_followup, apply_patch
+from llm.interpretation import get_task_specification
+from core.data_fetcher import fetch_data
+from core.visualizer import png_bytes, vega_spec, payload_to_df, choose_view
+from core.validation import validate_payload, validate_and_fix_spec
+from llm.followups import generate_followups_with_gemma
+from llm.session_update import spec_patch_from_followup, apply_patch
 
 
 # -------------------------
