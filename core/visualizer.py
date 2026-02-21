@@ -4,6 +4,7 @@ from typing import Dict, Any, List, Tuple
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib
 
 
 VAR_LABELS = {
@@ -21,6 +22,171 @@ VAR_LABELS = {
     "WS_C": "Water Stress Coefficient",
     "P_rz": "Root Zone Precip (mm)",
 }
+
+
+def create_crop_bar_chart(crop_summary: pd.DataFrame, location: str, year: int, 
+                          top_n: int = 15) -> Tuple[bytes, Dict[str, Any]]:
+    """
+    Create a horizontal bar chart for crop distribution
+    
+    Args:
+        crop_summary: DataFrame with columns ['Crop', 'Group', 'Field Count']
+        location: Location name
+        year: Year of data
+        top_n: Number of top crops to show
+        
+    Returns:
+        Tuple of (PNG bytes, Vega-Lite spec dict)
+    """
+    # Take top N crops
+    top_crops = crop_summary.head(top_n).copy()
+    top_crops = top_crops.sort_values('Field Count', ascending=True)  # For horizontal bars
+    
+    # Create Vega-Lite spec
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": f"Top {top_n} Crops in {location} ({year})",
+        "width": 600,
+        "height": 400,
+        "data": {"values": top_crops.to_dict('records')},
+        "mark": "bar",
+        "encoding": {
+            "y": {
+                "field": "Crop",
+                "type": "nominal",
+                "sort": "-x",
+                "title": None
+            },
+            "x": {
+                "field": "Field Count",
+                "type": "quantitative",
+                "title": "Number of Fields"
+            },
+            "color": {
+                "field": "Group",
+                "type": "nominal",
+                "title": "Crop Group",
+                "scale": {"scheme": "category20"}
+            },
+            "tooltip": [
+                {"field": "Crop", "type": "nominal"},
+                {"field": "Group", "type": "nominal", "title": "Group"},
+                {"field": "Field Count", "type": "quantitative", "title": "Fields"}
+            ]
+        }
+    }
+    
+    # Create matplotlib PNG
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Create color map by group
+    groups = top_crops['Group'].unique()
+    colors = plt.cm.tab20(range(len(groups)))
+    group_colors = dict(zip(groups, colors))
+    bar_colors = [group_colors[g] for g in top_crops['Group']]
+    
+    y_pos = range(len(top_crops))
+    ax.barh(y_pos, top_crops['Field Count'], color=bar_colors)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(top_crops['Crop'])
+    ax.set_xlabel('Number of Fields', fontsize=12)
+    ax.set_title(f'Top {top_n} Crops in {location} ({year})', fontsize=14, fontweight='bold')
+    ax.grid(axis='x', alpha=0.3)
+    
+    # Add legend for groups
+    handles = [plt.Rectangle((0,0),1,1, color=group_colors[g]) for g in groups]
+    ax.legend(handles, groups, title='Crop Group', bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    plt.tight_layout()
+    
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    
+    return buf.read(), vega
+
+
+def create_crop_pie_chart(crop_summary: pd.DataFrame, location: str, year: int,
+                         top_n: int = 10) -> Tuple[bytes, Dict[str, Any]]:
+    """
+    Create a pie chart showing crop distribution by group
+    
+    Args:
+        crop_summary: DataFrame with columns ['Crop', 'Group', 'Field Count']
+        location: Location name
+        year: Year of data
+        top_n: Number of groups to show (rest grouped as "Other")
+        
+    Returns:
+        Tuple of (PNG bytes, Vega-Lite spec dict)
+    """
+    # Group by crop group
+    group_summary = crop_summary.groupby('Group')['Field Count'].sum().reset_index()
+    group_summary = group_summary.sort_values('Field Count', ascending=False)
+    
+    # Take top N, group rest as "Other"
+    if len(group_summary) > top_n:
+        top_groups = group_summary.head(top_n)
+        other_count = group_summary.iloc[top_n:]['Field Count'].sum()
+        other_row = pd.DataFrame([{'Group': 'Other', 'Field Count': other_count}])
+        group_summary = pd.concat([top_groups, other_row], ignore_index=True)
+    
+    # Create Vega-Lite spec
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": f"Crop Distribution by Group - {location} ({year})",
+        "width": 400,
+        "height": 400,
+        "data": {"values": group_summary.to_dict('records')},
+        "mark": {"type": "arc", "innerRadius": 50},
+        "encoding": {
+            "theta": {"field": "Field Count", "type": "quantitative"},
+            "color": {
+                "field": "Group",
+                "type": "nominal",
+                "scale": {"scheme": "category20"},
+                "legend": {"title": "Crop Group"}
+            },
+            "tooltip": [
+                {"field": "Group", "type": "nominal"},
+                {"field": "Field Count", "type": "quantitative", "title": "Fields"}
+            ]
+        }
+    }
+    
+    # Create matplotlib PNG
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    colors = plt.cm.tab20(range(len(group_summary)))
+    wedges, texts, autotexts = ax.pie(
+        group_summary['Field Count'],
+        labels=group_summary['Group'],
+        autopct='%1.1f%%',
+        colors=colors,
+        startangle=90
+    )
+    
+    # Improve text readability
+    for text in texts:
+        text.set_fontsize(10)
+    for autotext in autotexts:
+        autotext.set_color('white')
+        autotext.set_fontweight('bold')
+        autotext.set_fontsize(9)
+    
+    ax.set_title(f'Crop Distribution by Group - {location} ({year})', 
+                 fontsize=14, fontweight='bold', pad=20)
+    
+    plt.tight_layout()
+    
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    buf.seek(0)
+    
+    return buf.read(), vega
+
 
 def _json_safe_records(df: pd.DataFrame) -> list[dict]:
     """Convert datetime-like objects into JSON-safe strings."""
@@ -103,15 +269,50 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
     chart_type = (spec.get("chart_type") or "line").lower()
     view = choose_view(df, vars_, chart_type)
 
-    # Generate title based on dataset type
+    # Generate title based on dataset type and query mode
     if spec.get("title"):
         title = spec["title"]
     elif spec.get("dataset") == "openet":
-        huc8 = spec.get("huc8_code", "")
-        location_name = "Klamath Falls" if huc8 == "18010204" else f"HUC8 {huc8}"
-        title = f"{location_name} • OPENET"
+        # Location-based OpenET queries (new system)
+        if spec.get("openet_geo") == "location" and spec.get("location"):
+            location = spec["location"]
+            location_type = spec.get("location_type", "area")
+            
+            # Add location type label
+            type_label = f"{location_type.title()}" if location_type in ["city", "county"] else ""
+            
+            # Add variables to title
+            if len(vars_) == 1:
+                var_label = f"{vars_[0]}"
+            elif len(vars_) <= 3:
+                var_label = ", ".join(vars_)
+            else:
+                var_label = f"{len(vars_)} variables"
+            
+            # Include crop filter if present
+            crop_filter = spec.get("crop_filter")
+            if crop_filter:
+                title = f"{var_label} for {crop_filter.title()} Fields near {location} ({type_label})"
+            else:
+                title = f"{var_label} near {location} ({type_label})"
+        
+        # Legacy HUC-based queries
+        else:
+            huc8 = spec.get("huc8_code", "")
+            location_name = "Klamath Falls" if huc8 == "18010204" else f"HUC8 {huc8}"
+            title = f"{location_name} • OpenET"
     else:
-        title = f"{spec.get('location','').title()} • {spec.get('dataset','').upper()}"
+        # AgriMet or other datasets
+        location = spec.get("location", "").title()
+        dataset = spec.get("dataset", "").upper()
+        if len(vars_) == 1:
+            title = f"{vars_[0]} in {location} ({dataset})"
+        elif len(vars_) <= 3:
+            var_label = ", ".join(vars_)
+            title = f"{var_label} in {location} ({dataset})"
+        else:
+            title = f"{location} • {dataset}"
+    
     mark = "bar" if chart_type == "bar" else "line"
 
     # long format (used for single + facet)
@@ -217,15 +418,49 @@ def png_bytes(payload: Dict[str, Any]) -> bytes:
     chart_type = (spec.get("chart_type") or "line").lower()
     view = choose_view(df, vars_, chart_type)
 
-    # Generate title based on dataset type
+    # Generate title based on dataset type and query mode (same logic as vega_spec)
     if spec.get("title"):
         title = spec["title"]
     elif spec.get("dataset") == "openet":
-        huc8 = spec.get("huc8_code", "")
-        location_name = "Klamath Falls" if huc8 == "18010204" else f"HUC8 {huc8}"
-        title = f"{location_name} • OPENET"
+        # Location-based OpenET queries (new system)
+        if spec.get("openet_geo") == "location" and spec.get("location"):
+            location = spec["location"]
+            location_type = spec.get("location_type", "area")
+            
+            # Add location type label
+            type_label = f"{location_type.title()}" if location_type in ["city", "county"] else ""
+            
+            # Add variables to title
+            if len(vars_) == 1:
+                var_label = f"{vars_[0]}"
+            elif len(vars_) <= 3:
+                var_label = ", ".join(vars_)
+            else:
+                var_label = f"{len(vars_)} variables"
+            
+            # Include crop filter if present
+            crop_filter = spec.get("crop_filter")
+            if crop_filter:
+                title = f"{var_label} for {crop_filter.title()} Fields near {location} ({type_label})"
+            else:
+                title = f"{var_label} near {location} ({type_label})"
+        
+        # Legacy HUC-based queries
+        else:
+            huc8 = spec.get("huc8_code", "")
+            location_name = "Klamath Falls" if huc8 == "18010204" else f"HUC8 {huc8}"
+            title = f"{location_name} • OpenET"
     else:
-        title = f"{spec.get('location','').title()} • {spec.get('dataset','').upper()}"
+        # AgriMet or other datasets
+        location = spec.get("location", "").title()
+        dataset = spec.get("dataset", "").upper()
+        if len(vars_) == 1:
+            title = f"{vars_[0]} in {location} ({dataset})"
+        elif len(vars_) <= 3:
+            var_label = ", ".join(vars_)
+            title = f"{var_label} in {location} ({dataset})"
+        else:
+            title = f"{location} • {dataset}"
 
     fig = plt.figure(figsize=(10, 4.8))
     fig.suptitle(title)

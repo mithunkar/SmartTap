@@ -3,6 +3,11 @@ Data Fetcher Module for SmartTap
 Loads pre-downloaded data from local CSV files (AgriMet) and OpenET (Field/HUC).
 Produces a unified payload format:
   {"spec": spec, "data": {"records": [ {"datetime": ..., <var1>: ..., <var2>: ...}, ... ]}}
+
+Extended to support location-based OpenET queries:
+  - Query by city: "Show ETa for fields in Corvallis"
+  - Query by county: "What is PPT for Benton County fields"
+  - Optional crop filter: "ETa for wheat fields in Hood River"
 """
 
 import os
@@ -11,6 +16,7 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 
 import pandas as pd
+from .location_crop_query import LocationCropQuery
 
 
 # -------------------------
@@ -119,7 +125,8 @@ def get_data_files_for_range(location: str, start_date: str, end_date: str) -> L
     """
     loc = (location or "").lower().strip()
     if loc not in LOCATION_PREFIXES:
-        raise ValueError(f"Unknown location: {location}. Available: {list(LOCATION_PREFIXES.keys())}")
+        available_locs = ", ".join(sorted(LOCATION_PREFIXES.keys()))
+        raise ValueError(f"Unknown AgriMet location: '{location}'. Available: {available_locs}")
 
     start_year = int(start_date.split("-")[0]) if start_date else 2015
     end_year = int(end_date.split("-")[0]) if end_date else 2025
@@ -251,7 +258,7 @@ def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
 # OpenET loading (FIELD + HUC)
 # -------------------------
 
-# Optional aliasing so user/LLM can say "eta" and we map to "ETa" etc.
+# Optional aliasing so users can say "eta" and we map to "ETa" etc.
 OPENET_ALIASES = {
     "eta": "ETa",
     "et": "ETa",
@@ -281,25 +288,109 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
       records = [{"datetime": ..., "ETa": ..., "PPT": ...}, ...]
       
     spec fields supported:
-      - openet_geo: "field" | "huc8" | "huc12"   (default "field")
+      - openet_geo: "field" | "location" | "huc8" | "huc12"   (default "huc8")
       - openet_id (field) OR huc8_code/huc12_code (huc)
+      - location: city or county name (for location-based queries)
+      - location_type: "city" or "county" (optional, auto-detected)
+      - crop_filter: crop name to filter fields (optional)
+      - aggregation: "mean", "sum", "median" (for multi-field queries)
       - variables: list of metric/variable names (optional)
       - start_date, end_date (optional)
       - interval: "monthly" | "yearly" | "daily" (daily will just return native)
     """
-    geo = (spec.get("openet_geo") or "field").lower().strip()
+    geo = (spec.get("openet_geo") or "huc8").lower().strip()
     variables = _normalize_openet_vars(spec.get("variables") or spec.get("metrics") or [])
     start_date = spec.get("start_date")
     end_date = spec.get("end_date")
     interval = spec.get("interval", "monthly")
 
-    if geo not in {"field", "huc8", "huc12"}:
-        raise ValueError(f"openet_geo must be one of field/huc8/huc12, got: {geo}")
+    if geo not in {"field", "location", "huc8", "huc12"}:
+        raise ValueError(f"openet_geo must be one of field/location/huc8/huc12, got: {geo}")
+
+    # -------------------
+    # LOCATION (city/county-based field queries)
+    # -------------------
+    if geo == "location" or (geo == "field" and spec.get("location")):
+        location = spec.get("location")
+        if not location:
+            raise ValueError("location-based query requires 'location' field (city or county name)")
+        
+        location_type = spec.get("location_type", "city").lower()
+        crop_filter = spec.get("crop_filter")
+        aggregation = spec.get("aggregation", "mean")
+        
+        if not variables:
+            raise ValueError("location-based query requires at least one variable (ETa, PPT, AW, etc.)")
+        
+        # Use full Oregon geopackage path
+        full_oregon_gpkg = DATA_DIR / "preliminary_or_field_geopackage.gpkg"
+        
+        # Initialize query system
+        query_system = LocationCropQuery(full_oregon_gpkg=str(full_oregon_gpkg))
+        
+        # Query each variable and combine results
+        all_results = {}  # Changed to dict to track which variable each result is for
+        for variable in variables:
+            print(f"\nQuerying {variable} for {location} ({location_type})...")
+            
+            if location_type == "city":
+                df_var = query_system.query_variable_by_city(
+                    city_name=location,
+                    variable=variable,
+                    start_date=start_date or "2020-01-01",
+                    end_date=end_date or "2024-12-31",
+                    crop_filter=crop_filter,
+                    aggregation=aggregation
+                )
+            elif location_type == "county":
+                df_var = query_system.query_variable_by_county(
+                    county_name=location,
+                    variable=variable,
+                    start_date=start_date or "2020-01-01",
+                    end_date=end_date or "2024-12-31",
+                    crop_filter=crop_filter,
+                    aggregation=aggregation
+                )
+            else:
+                raise ValueError(f"location_type must be 'city' or 'county', got: {location_type}")
+            
+            if df_var.empty:
+                print(f"Warning: No data for {variable}")
+                continue
+                
+            all_results[variable] = df_var
+        
+        if not all_results:
+            if location_type == "city":
+                raise ValueError(
+                    f"No OpenET data found for '{location}'. This city may not exist in Oregon, "
+                    f"or there may be no agricultural fields near this location. "
+                    f"Try: Corvallis, Hood River, Klamath Falls, Hermiston, Pendleton, etc."
+                )
+            else:
+                raise ValueError(
+                    f"No OpenET data found for '{location}' County. This county may not exist in Oregon, "
+                    f"or there may be no agricultural fields in this county. "
+                    f"Try: Benton, Marion, Klamath, Hood River, Umatilla, Malheur, etc."
+                )
+        
+        # Merge all variables on datetime
+        first_var = list(all_results.keys())[0]
+        wide = all_results[first_var][['datetime', first_var]].copy()
+        
+        for var in list(all_results.keys())[1:]:
+            wide = wide.merge(
+                all_results[var][['datetime', var]],
+                on='datetime',
+                how='outer'
+            )
+        
+        wide = wide.sort_values('datetime').reset_index(drop=True)
 
     # -------------------
     # FIELD
     # -------------------
-    if geo == "field":
+    elif geo == "field":
         _require_file(
             OPENET_FIELD_COMBINED,
             "Create it by running: python combine_openet_field.py (expects field_long_out/*_field_long.csv first).",

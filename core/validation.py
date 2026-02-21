@@ -62,7 +62,7 @@ def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, Any]:
     """
-    Validate + repair the LLM output spec.
+    Validate + repair the query parser output spec.
     Ensures dataset/location/variables/start_date/end_date are not None.
     Tries to infer variables from the user query if missing.
     """
@@ -71,6 +71,18 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
     # Required defaults
     if not fixed.get("task"):
         fixed["task"] = "visualize_timeseries"
+    
+    # If this is a crop summary task, skip variable validation
+    if fixed.get("task") == "summarize_crops":
+        # Ensure location and location_type are set
+        if not fixed.get("location"):
+            fixed["task"] = "error"
+            fixed["error_message"] = "Crop summary requires a location (city or county name)"
+        if not fixed.get("location_type"):
+            fixed["location_type"] = "city"  # Default to city
+        if not fixed.get("year"):
+            fixed["year"] = 2024  # Default year
+        return fixed
 
     if not fixed.get("dataset"):
         fixed["dataset"] = "agrimet"

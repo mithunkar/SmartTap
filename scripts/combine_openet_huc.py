@@ -1,7 +1,7 @@
 import glob, os
 import pandas as pd
 
-IN_DIR = "openet_csv_out"
+IN_DIR = "data/archive/openet_csv_out"
 OUT = os.path.join("data", "openet", "huc_combined_long.csv")
 
 os.makedirs(os.path.dirname(OUT), exist_ok=True)

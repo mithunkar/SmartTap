@@ -172,7 +172,7 @@ def gpkg_to_csv_and_long(gpkg_path: str, out_dir: str, pivot: int = 24) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Export all GPKG layers to CSV + reshape time columns to long CSV.")
     parser.add_argument("--gpkg", required=True, help="Path to .gpkg file")
-    parser.add_argument("--out", default="openet_csv_out", help="Output directory for CSVs")
+    parser.add_argument("--out", default="data/archive/openet_csv_out", help="Output directory for CSVs")
     args = parser.parse_args()
 
     gpkg_to_csv_and_long(args.gpkg, args.out)

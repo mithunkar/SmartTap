@@ -64,7 +64,7 @@ def fetch_station_data(station_id, year):
         df.loc[df['daily_precip_in'] < 0, 'daily_precip_in'] = df['cum_precip_in']
         df['daily_precip_in'] = df['daily_precip_in'].fillna(0).round(2)
         
-        #fill missing solar/wind with 0 rather than NaN for the LLM
+        #fill missing solar/wind with 0 rather than NaN
         df = df.fillna(0)
 
         return df

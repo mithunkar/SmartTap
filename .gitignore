@@ -1,7 +1,18 @@
+# Data files (too large for git)
 data/
+!data/*.csv
+!data/*.json
+!data/agrimet/
+
+# Generated outputs
+outputs/
+evaluation_results/
 
 # Environment variables
 .env
+
+# Docs
+docs/
 
 # Python
 __pycache__/
@@ -12,10 +23,24 @@ __pycache__/
 venv/
 env/
 ENV/
-.DS_Store
+*.egg-info/
+dist/
+build/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Test coverage
+.coverage
+htmlcov/

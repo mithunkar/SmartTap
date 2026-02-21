@@ -1,20 +1,20 @@
 """
-Configuration for SmartTap LLM settings
+Configuration for SmartTap query parser settings
 """
 
 import os
 from pathlib import Path
 
-# LLM Configuration
+# Parser Configuration
 DEFAULT_MODEL = "gemma3:latest"
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 
 def get_model_name():
-    """Get the current LLM model from environment or use default"""
+    """Get the current parser model from environment or use default"""
     return os.getenv("SMARTTAP_MODEL", DEFAULT_MODEL)
 
 def set_model_name(model_name):
-    """Set the LLM model for the current session"""
+    """Set the parser model for the current session"""
     os.environ["SMARTTAP_MODEL"] = model_name
 
 # Supported models for evaluation (examples - install with ollama pull)
