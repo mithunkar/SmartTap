@@ -17,6 +17,7 @@ from typing import Dict, Any, List, Optional
 
 import pandas as pd
 from .location_crop_query import LocationCropQuery
+from .agrimet_api import fetch_agrimet_api_data
 
 
 # -------------------------
@@ -41,6 +42,10 @@ OPENET_HUC_COMBINED = OPENET_DIR / "huc_combined_long.csv"
 # -------------------------
 # AgriMet configuration
 # -------------------------
+
+# Toggle between API and local files
+# Set environment variable AGRIMET_USE_API=1 to use API, or 0/unset to use local files
+USE_AGRIMET_API = os.environ.get("AGRIMET_USE_API", "0") == "1"
 
 # location name to file prefix mapping (matches your saved file names)
 LOCATION_PREFIXES = {
@@ -148,16 +153,104 @@ def get_data_files_for_range(location: str, start_date: str, end_date: str) -> L
     return files
 
 
+def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Fetch AgriMet data from the USBR API instead of local files.
+    """
+    location = (spec.get("location", "corvallis") or "corvallis").lower().strip()
+    variables = spec.get("variables", []) or []
+    start_date = spec.get("start_date") or "2024-01-01"
+    end_date = spec.get("end_date") or "2024-12-31"
+    interval = spec.get("interval", "daily")
+    
+    # Fetch from API
+    df = fetch_agrimet_api_data(
+        location=location,
+        variables=variables,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    if df.empty:
+        raise ValueError(f"No AgriMet data returned from API for {location}")
+    
+    # Rename date -> datetime
+    df = df.rename(columns={"date": "datetime"})
+    
+    # Build result frame with requested variables
+    result_df = pd.DataFrame({"datetime": df["datetime"]})
+    
+    for var in variables:
+        if var == "OBM":
+            if "max_temp_f" not in df.columns or "min_temp_f" not in df.columns:
+                raise ValueError("API data missing temperature columns for OBM.")
+            result_df["OBM"] = ((df["max_temp_f"] + df["min_temp_f"]) / 2).round(2)
+        
+        elif var == "MX":
+            if "max_temp_f" not in df.columns:
+                raise ValueError("API data missing max_temp_f for MX.")
+            result_df["MX"] = df["max_temp_f"].round(2)
+        
+        elif var == "MN":
+            if "min_temp_f" not in df.columns:
+                raise ValueError("API data missing min_temp_f for MN.")
+            result_df["MN"] = df["min_temp_f"].round(2)
+        
+        elif var == "PC":
+            if "daily_precip_in" not in df.columns:
+                raise ValueError("API data missing daily_precip_in for PC.")
+            result_df["PC"] = (df["daily_precip_in"] * 25.4).round(2)  # inches to mm
+        
+        elif var == "SR":
+            if "solar_langley" not in df.columns:
+                print("Warning: Solar radiation not available from API")
+                result_df["SR"] = 0.0
+            else:
+                result_df["SR"] = df["solar_langley"].round(2)
+        
+        elif var == "WS":
+            if "wind_speed_mph" not in df.columns:
+                print("Warning: Wind speed not available from API")
+                result_df["WS"] = 0.0
+            else:
+                result_df["WS"] = df["wind_speed_mph"].round(2)
+        
+        elif var == "TU":
+            print("TU (Humidity) not available from API, skipping")
+        
+        else:
+            print(f"Variable {var} not recognized for AgriMet.")
+    
+    # Interval aggregation
+    result_df["datetime"] = pd.to_datetime(result_df["datetime"])
+    result_df = _apply_interval(result_df, interval)
+    
+    records = result_df.to_dict(orient="records")
+    print(f"Loaded {len(records)} AgriMet records from API")
+    
+    return {"spec": spec, "data": {"records": records}}
+
+
 def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Load AgriMet weather data from local yearly CSV files.
+    Load AgriMet weather data from API or local yearly CSV files.
     Returns payload in SmartTap format (datetime + requested variables).
+    
+    Set AGRIMET_USE_API=1 environment variable to fetch from API.
     """
     location = (spec.get("location", "corvallis") or "corvallis").lower().strip()
     variables = spec.get("variables", []) or []
     start_date = spec.get("start_date")
     end_date = spec.get("end_date")
     interval = spec.get("interval", "daily")
+    
+    # Use API if enabled
+    if USE_AGRIMET_API:
+        print(f"Using AgriMet API (AGRIMET_USE_API=1)")
+        return _fetch_agrimet_from_api(spec)
+    
+    # Otherwise use local files (original implementation)
+    print(f"Using local AgriMet files (set AGRIMET_USE_API=1 to use API)")
 
     csv_files = get_data_files_for_range(location, start_date, end_date)
     if not csv_files:

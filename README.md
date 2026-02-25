@@ -28,6 +28,10 @@ python smarttap.py "Show temperature in Corvallis for July 2024"
 
 # 3. View your chart
 open outputs/charts/chart_*_chart.png
+
+# 4. (Optional) Use real-time API instead of local files
+export AGRIMET_USE_API=1
+python smarttap.py "Show temperature in Corvallis for July 2024"
 ```
 
 ---
@@ -125,6 +129,7 @@ python smarttap.py "Which crops are grown in Hood River County?"
 
 - **Natural Language Queries** - Ask in plain English, no coding required  
 - **Automatic Dataset Routing** - Smart selection between OpenET and AgriMet  
+- **Real-Time API Support** - Fetch latest AgriMet data on-demand (set `AGRIMET_USE_API=1`)
 - **Location-Based Queries** - Query by city, county, or crop type  
 - **Crop Filtering** - Filter results by crop (wheat, alfalfa, cherries, etc.)  
 - **Multiple Chart Types** - Bar charts, pie charts, line plots, dual-axis, faceted  
@@ -181,7 +186,7 @@ SmartTap/
 
 ```bash
 # Python packages
-pip install pandas geopandas matplotlib ollama
+pip install pandas geopandas matplotlib ollama httpx
 
 # Install Ollama (if not already installed)
 # macOS/Linux: visit https://ollama.ai
@@ -342,6 +347,7 @@ python tests/model_comparison.py --quick
 ## Documentation
 
 - **[UNIFIED_QUERY_GUIDE.md](docs/UNIFIED_QUERY_GUIDE.md)** - Complete query reference
+- **[AGRIMET_API_GUIDE.md](docs/AGRIMET_API_GUIDE.md)** - Real-time API data fetching
 - **[PRECIPITATION_ROUTING_GUIDE.md](docs/PRECIPITATION_ROUTING_GUIDE.md)** - Dataset selection guide
 - **[MODEL_EVALUATION.md](docs/MODEL_EVALUATION.md)** - Parser model comparison
 - **[TESTING.md](docs/TESTING.md)** - Testing documentation
