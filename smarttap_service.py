@@ -14,6 +14,7 @@ os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir.parent))
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from core.contracts import build_error_result, build_preview, build_success_result
 from core.data_fetcher import fetch_data
 from core.location_crop_query import LocationCropQuery
 from core.validation import validate_and_fix_spec, validate_payload
@@ -108,43 +109,6 @@ def _build_stat_png(variable: str, stats: Dict[str, float]) -> bytes:
     return buffer.getvalue()
 
 
-def _result_success(
-    *,
-    spec: Dict[str, Any],
-    summary: Dict[str, Any],
-    data_preview: pd.DataFrame,
-    chart_bytes: bytes,
-    vega: Dict[str, Any],
-    files: Dict[str, str],
-    validation_report: Dict[str, Any] | None = None,
-) -> Dict[str, Any]:
-    return {
-        "success": True,
-        "spec": spec,
-        "summary": summary,
-        "data_preview": data_preview,
-        "data": data_preview,
-        "chart_bytes": chart_bytes,
-        "vega_spec": vega,
-        "files": files,
-        "validation_report": validation_report,
-    }
-
-
-def _result_error(message: str) -> Dict[str, Any]:
-    return {
-        "success": False,
-        "error": message,
-        "spec": None,
-        "summary": {},
-        "data_preview": None,
-        "data": None,
-        "chart_bytes": None,
-        "vega_spec": None,
-        "files": {},
-    }
-
-
 def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
     payload = fetch_data(spec)
     report = validate_payload(payload)
@@ -158,9 +122,7 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
     _save_json(paths["vega"], vega)
 
     final_spec, df, variables = payload_to_df(payload)
-    preview = df.reset_index()
-    if len(preview) > 20:
-        preview = pd.concat([preview.head(10), preview.tail(10)], ignore_index=True)
+    preview = build_preview(df)
 
     summary = {
         "task": final_spec["task"],
@@ -170,12 +132,12 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
         "row_count": len(df),
         "date_range": f"{final_spec.get('start_date')} to {final_spec.get('end_date')}",
     }
-    return _result_success(
+    return build_success_result(
         spec=final_spec,
         summary=summary,
         data_preview=preview,
         chart_bytes=png,
-        vega=vega,
+        vega_spec=vega,
         files={key: str(value) for key, value in paths.items()},
         validation_report=report,
     )
@@ -223,12 +185,12 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
         "variable": variable,
         **stats,
     }
-    return _result_success(
+    return build_success_result(
         spec=final_spec,
         summary=summary,
         data_preview=preview,
         chart_bytes=png,
-        vega=vega,
+        vega_spec=vega,
         files={key: str(value) for key, value in paths.items()},
         validation_report=report,
     )
@@ -271,12 +233,12 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
         "total_fields": int(len(df)),
         "total_crops": int(len(crop_summary)),
     }
-    return _result_success(
+    return build_success_result(
         spec=spec,
         summary=summary,
         data_preview=crop_summary.head(20).reset_index(drop=True),
         chart_bytes=png,
-        vega=vega,
+        vega_spec=vega,
         files={key: str(value) for key, value in paths.items()},
     )
 
@@ -287,7 +249,7 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
         fixed_spec = validate_and_fix_spec(raw_spec, query)
 
         if fixed_spec.get("task") == "error":
-            return _result_error(fixed_spec.get("error_message", "Invalid query."))
+            return build_error_result(fixed_spec.get("error_message", "Invalid query."))
 
         task = fixed_spec["task"]
         paths = _output_paths(_base_name())
@@ -299,8 +261,8 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
         if task == "summarize_crops":
             return _run_crop_summary(fixed_spec, paths)
 
-        return _result_error(f"Unsupported task: {task}")
+        return build_error_result(f"Unsupported task: {task}")
     except SmartTapError as exc:
-        return _result_error(str(exc))
+        return build_error_result(str(exc))
     except Exception as exc:
-        return _result_error(str(exc))
+        return build_error_result(str(exc))
