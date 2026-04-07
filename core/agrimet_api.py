@@ -32,6 +32,12 @@ COMMON_SENSOR_MAP = {
     "TU": ["rh"],              # Relative humidity
     "ET": ["et"],              # Evapotranspiration
     "RH": ["rh"],              # Relative humidity (alternative)
+    "PEN_ET": ["et"],          # Reference evapotranspiration (API closest signal)
+    "24_HR_PCP": ["pp"],       # 24-hour precipitation
+    "AVG_TMP": ["mx", "mn"], # Average temperature from max/min
+    "AVG_HUM": ["rh"],         # Average humidity
+    "AV_WSPD": ["ws"],         # Average wind speed
+    "KC": ["kc"],              # Crop coefficient (if station provides it)
 }
 
 # Common location aliases for convenience
@@ -359,21 +365,23 @@ def fetch_agrimet_api_data(
     # API returns columns with format: stationid_sensor (e.g., crvo_mx)
     result = pd.DataFrame({'date': df['date']})
     
-    # Find sensor columns
-    mx_col = mn_col = pp_col = sr_col = ws_col = None
-    
+    # Find sensor columns and expose them by sensor code for downstream mapping.
+    sensor_to_col: Dict[str, str] = {}
     for col in df.columns:
         col_lower = col.lower()
-        if '_mx' in col_lower or col_lower == 'mx':
-            mx_col = col
-        elif '_mn' in col_lower or col_lower == 'mn':
-            mn_col = col
-        elif '_pp' in col_lower or col_lower == 'pp':
-            pp_col = col
-        elif '_sr' in col_lower or col_lower == 'sr':
-            sr_col = col
-        elif '_ws' in col_lower or col_lower == 'ws':
-            ws_col = col
+        if col_lower in {"date", "datetime", "siteid", "station"}:
+            continue
+
+        candidate = col_lower.split("_")[-1]
+        if candidate.isalpha() and len(candidate) <= 5:
+            if candidate not in sensor_to_col:
+                sensor_to_col[candidate] = col
+
+    mx_col = sensor_to_col.get("mx")
+    mn_col = sensor_to_col.get("mn")
+    pp_col = sensor_to_col.get("pp")
+    sr_col = sensor_to_col.get("sr")
+    ws_col = sensor_to_col.get("ws")
     
     result['max_temp_f'] = pd.to_numeric(df[mx_col], errors='coerce') if mx_col else None
     result['min_temp_f'] = pd.to_numeric(df[mn_col], errors='coerce') if mn_col else None
@@ -383,6 +391,12 @@ def fetch_agrimet_api_data(
     
     result['location'] = station_title
     result['cum_precip_in'] = 0.0
+
+    # Preserve raw sensor columns (lowercase sensor code) for advanced variables.
+    for sensor_code, source_col in sensor_to_col.items():
+        if sensor_code in result.columns:
+            continue
+        result[sensor_code] = pd.to_numeric(df[source_col], errors='coerce')
     
     # Drop rows with invalid dates
     result = result.dropna(subset=['date'])

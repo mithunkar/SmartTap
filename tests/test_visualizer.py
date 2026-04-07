@@ -1,27 +1,39 @@
-import json
-from core.visualizer import png_bytes, vega_spec
+from core.visualizer import choose_view, payload_to_df, vega_spec
 
-PAYLOAD_FILE = "fixtures/test_payload.json"
 
-def main():
-    with open(PAYLOAD_FILE, "r") as f:
-        payload = json.load(f)
+PAYLOAD = {
+    "spec": {
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "location": "corvallis",
+        "variables": ["OBM", "PC"],
+        "chart_type": "line",
+        "start_date": "2020-01-01",
+        "end_date": "2020-01-03",
+    },
+    "data": {
+        "records": [
+            {"datetime": "2020-01-01", "OBM": 50.0, "PC": 0.0},
+            {"datetime": "2020-01-02", "OBM": 51.0, "PC": 4.0},
+            {"datetime": "2020-01-03", "OBM": 48.0, "PC": 1.0},
+        ]
+    },
+}
 
-    # 1) save PNG
-    img = png_bytes(payload)
-    with open("chart.png", "wb") as f:
-        f.write(img)
-    print("Wrote chart.png")
 
-    # 2) save Vega-Lite spec
-    spec = vega_spec(payload)
-    with open("chart_vega.json", "w") as f:
-        json.dump(spec, f, indent=2)
-    print("Wrote chart_vega.json")
+def test_payload_to_df():
+    spec, df, variables = payload_to_df(PAYLOAD)
+    assert spec["dataset"] == "agrimet"
+    assert list(df.columns) == ["OBM", "PC"]
+    assert variables == ["OBM", "PC"]
 
-    print("\nNext:")
-    print("- Open chart.png to view the static plot")
-    print("- Paste chart_vega.json into https://vega.github.io/editor/ to view interactive plot")
 
-if __name__ == "__main__":
-    main()
+def test_choose_view_for_two_similar_ranges():
+    _, df, variables = payload_to_df(PAYLOAD)
+    view = choose_view(df, variables, "line")
+    assert view["mode"] == "single"
+
+
+def test_vega_spec_has_schema():
+    spec = vega_spec(PAYLOAD)
+    assert spec["$schema"].startswith("https://vega.github.io/")

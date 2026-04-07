@@ -1,7 +1,7 @@
 import fiona
 import geopandas as gpd
 
-gpkg_path = "or_huc_geopackage.gpkg"   # <-- change this
+gpkg_path = "data/archive/_OpenET_Extracted.gpkg"   # <-- change this
 
 # 1) List layers
 layers = fiona.listlayers(gpkg_path)

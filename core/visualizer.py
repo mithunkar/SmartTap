@@ -1,10 +1,18 @@
 import base64
 import io
+import os
+from pathlib import Path
 from typing import Dict, Any, List, Tuple
 
-import pandas as pd
-import matplotlib.pyplot as plt
+cache_dir = Path(__file__).resolve().parent.parent / ".cache" / "matplotlib"
+cache_dir.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("MPLCONFIGDIR", str(cache_dir))
+os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir.parent))
+
 import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
 VAR_LABELS = {
@@ -16,11 +24,18 @@ VAR_LABELS = {
     "WS": "Wind Speed (mph)",
     "TU": "Humidity (%)",
     "ET": "Evapotranspiration (mm)",
-    "ETa": "Evapotranspiration (mm)",
-    "PPT": "Precipitation (mm)",
-    "AW": "Available Water (mm)",
+    "ETa": "Evapotranspiration (in)",
+    "PPT": "Precipitation (in)",
+    "AW": "Applied Water (acre-ft)",
     "WS_C": "Water Stress Coefficient",
-    "P_rz": "Root Zone Precip (mm)",
+    "P_rz": "Root Zone Precip (in)",
+    "AREA": "Farmland Area (acres)",
+    "ACRES_FTR_GEOM": "Farmland Area (acres)",
+    "CROP": "Crop Field Count",
+    "IRR_STATUS": "Irrigated Fields",
+    "per_IRRIGATED": "Irrigated Share (%)",
+    "IRR_EFF": "Irrigation Efficiency",
+    "ITYPE": "Irrigation System Mode",
 }
 
 

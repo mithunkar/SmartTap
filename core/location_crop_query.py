@@ -10,7 +10,7 @@ Extended to support OpenET variable queries by location:
 import sqlite3
 import pandas as pd
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple
+from typing import Any, List, Dict, Optional, Tuple
 from collections import Counter
 from datetime import datetime
 
@@ -431,6 +431,19 @@ class LocationCropQuery:
         # Parse dates
         start = pd.to_datetime(start_date)
         end = pd.to_datetime(end_date)
+
+        # Some query intents require yearly derived metrics from wide annual layers
+        # instead of monthly variable tables (e.g., CROP, IRR_STATUS, per_IRRIGATED, AREA).
+        derived_vars = {"AREA", "ACRES_FTR_GEOM", "CROP", "IRR_STATUS", "per_IRRIGATED", "IRR_EFF", "ITYPE"}
+        if variable in derived_vars:
+            return self.get_annual_derived_timeseries(
+                openet_ids=openet_ids,
+                variable=variable,
+                start_date=start_date,
+                end_date=end_date,
+                crop_filter=None,
+                aggregation=aggregation,
+            )
         
         # Determine unit suffix for this variable
         # Different variables use different units
@@ -442,6 +455,7 @@ class LocationCropQuery:
             'NIWR': '_in',
             'AW': '_acft',
             'IRR_CU_VOLUME': '_acft',
+            'IRR_CU_VOLUMEadj': '_acft',
             'NIWR_VOLUME': '_acft',
             'PPT_VOLUME': '_acft',
             'ET_VOLUME': '_acft',
@@ -552,12 +566,168 @@ class LocationCropQuery:
         result['aggregation'] = aggregation
         
         return result
+
+    def _crop_codes_from_filter(self, crop_filter: Optional[str]) -> List[int]:
+        if not crop_filter:
+            return []
+
+        crop_filter_lower = crop_filter.lower().strip()
+        matches: List[int] = []
+        for code, info in self.crop_names.items():
+            crop_name_lower = info["name"].lower()
+            if (
+                crop_filter_lower in crop_name_lower
+                or crop_name_lower in crop_filter_lower
+                or crop_filter_lower.rstrip("s") in crop_name_lower
+                or crop_name_lower.rstrip("s") in crop_filter_lower
+            ):
+                matches.append(code)
+        return matches
+
+    def _yearly_column(self, variable: str, year: int) -> Optional[str]:
+        if variable == "CROP":
+            return f"CROP_{year}"
+        if variable == "IRR_STATUS":
+            return f"IRR_STATUS_{year}"
+        if variable == "per_IRRIGATED":
+            return f"per_IRRIGATED_{year % 100:02d}"
+        return None
+
+    def _fetch_table_subset(self, conn: sqlite3.Connection, table: str, cols: List[str], openet_ids: List[str]) -> pd.DataFrame:
+        if not openet_ids:
+            return pd.DataFrame(columns=cols)
+
+        safe_cols = [c for c in cols if c]
+        if "OPENET_ID" not in safe_cols:
+            safe_cols = ["OPENET_ID"] + safe_cols
+        col_str = ", ".join(dict.fromkeys(safe_cols))
+
+        chunks: List[pd.DataFrame] = []
+        chunk_size = 2500
+        for i in range(0, len(openet_ids), chunk_size):
+            chunk = openet_ids[i : i + chunk_size]
+            ids_str = "', '".join(chunk)
+            query = f"""
+            SELECT {col_str}
+            FROM {table}
+            WHERE OPENET_ID IN ('{ids_str}')
+            """
+            chunks.append(pd.read_sql_query(query, conn))
+
+        if not chunks:
+            return pd.DataFrame(columns=safe_cols)
+        return pd.concat(chunks, ignore_index=True)
+
+    def get_annual_derived_timeseries(
+        self,
+        openet_ids: List[str],
+        variable: str,
+        start_date: str,
+        end_date: str,
+        crop_filter: Optional[str] = None,
+        aggregation: str = "mean",
+    ) -> pd.DataFrame:
+        """
+        Build annual derived metrics from wide yearly layers in the geopackage.
+        """
+        if self.crop_source != "geopackage":
+            return pd.DataFrame()
+
+        start_year = pd.to_datetime(start_date).year
+        end_year = pd.to_datetime(end_date).year
+        years = list(range(start_year, end_year + 1))
+        if not years:
+            return pd.DataFrame()
+
+        crop_cols = [f"CROP_{y}" for y in years]
+        base_cols = ["OPENET_ID", "ACRES_FTR_GEOM", "IRR_EFF", "ITYPE"] + crop_cols
+
+        irr_status_cols = [f"IRR_STATUS_{y}" for y in years] if variable == "IRR_STATUS" else []
+        per_irr_cols = [f"per_IRRIGATED_{y % 100:02d}" for y in years] if variable == "per_IRRIGATED" else []
+
+        conn = sqlite3.connect(self.crop_gpkg)
+        try:
+            crop_df = self._fetch_table_subset(conn, "CROP", base_cols, openet_ids)
+
+            irr_status_df = pd.DataFrame()
+            if irr_status_cols:
+                irr_status_df = self._fetch_table_subset(conn, "IRR_STATUS", ["OPENET_ID"] + irr_status_cols, openet_ids)
+
+            per_irr_df = pd.DataFrame()
+            if per_irr_cols:
+                per_irr_df = self._fetch_table_subset(conn, "per_IRRIGATED", ["OPENET_ID"] + per_irr_cols, openet_ids)
+        finally:
+            conn.close()
+
+        if crop_df.empty:
+            return pd.DataFrame()
+
+        crop_codes = set(self._crop_codes_from_filter(crop_filter))
+        rows: List[Dict[str, Any]] = []
+
+        for year in years:
+            crop_col = f"CROP_{year}"
+            if crop_col not in crop_df.columns:
+                continue
+
+            frame = crop_df.copy()
+            frame[crop_col] = pd.to_numeric(frame[crop_col], errors="coerce")
+
+            if crop_codes:
+                frame = frame[frame[crop_col].isin(crop_codes)]
+
+            if frame.empty:
+                value = 0.0
+            elif variable in {"AREA", "ACRES_FTR_GEOM"}:
+                value = float(pd.to_numeric(frame["ACRES_FTR_GEOM"], errors="coerce").fillna(0).sum())
+            elif variable == "CROP":
+                # If a crop filter is supplied, this is annual field-count for that crop.
+                # Otherwise, use all fields with a valid crop code.
+                value = float(frame[crop_col].notna().sum())
+            elif variable == "IRR_EFF":
+                value = float(pd.to_numeric(frame["IRR_EFF"], errors="coerce").mean())
+            elif variable == "ITYPE":
+                mode_series = pd.to_numeric(frame["ITYPE"], errors="coerce").dropna().mode()
+                value = float(mode_series.iloc[0]) if not mode_series.empty else 0.0
+            elif variable == "IRR_STATUS":
+                year_col = f"IRR_STATUS_{year}"
+                if irr_status_df.empty or year_col not in irr_status_df.columns:
+                    value = 0.0
+                else:
+                    merged = frame[["OPENET_ID"]].merge(
+                        irr_status_df[["OPENET_ID", year_col]], on="OPENET_ID", how="left"
+                    )
+                    vals = pd.to_numeric(merged[year_col], errors="coerce").fillna(0)
+                    if aggregation == "mean":
+                        value = float(vals.mean())
+                    else:
+                        value = float((vals > 0).sum())
+            elif variable == "per_IRRIGATED":
+                year_col = f"per_IRRIGATED_{year % 100:02d}"
+                if per_irr_df.empty or year_col not in per_irr_df.columns:
+                    value = 0.0
+                else:
+                    merged = frame[["OPENET_ID"]].merge(
+                        per_irr_df[["OPENET_ID", year_col]], on="OPENET_ID", how="left"
+                    )
+                    vals = pd.to_numeric(merged[year_col], errors="coerce")
+                    value = float(vals.mean())
+            else:
+                value = 0.0
+
+            rows.append({
+                "datetime": pd.Timestamp(f"{year}-01-01"),
+                variable: value,
+            })
+
+        return pd.DataFrame(rows)
     
     def query_variable_by_city(self, city_name: str, variable: str,
                                start_date: str, end_date: str,
                                crop_filter: Optional[str] = None,
                                aggregation: str = "mean",
-                               max_distance: int = 1) -> pd.DataFrame:
+                               max_distance: int = 1,
+                               return_metadata: bool = False) -> pd.DataFrame:
         """
         Query OpenET variable for fields near a city
         
@@ -569,18 +739,30 @@ class LocationCropQuery:
             crop_filter: Optional crop name to filter (e.g., "Wheat")
             aggregation: How to aggregate ("mean", "sum", "median")
             max_distance: 1 = nearest city only, 2 = include second nearest
+            return_metadata: If True, return tuple (data, field_metadata)
         
         Returns:
             DataFrame with datetime and variable timeseries
+            OR tuple of (DataFrame, dict) if return_metadata=True
         """
         # Step 1: Find fields near the city
         fields = self.find_fields_by_city(city_name, max_distance)
         
         if fields.empty:
             print(f"No fields found near {city_name}")
+            if return_metadata:
+                return pd.DataFrame(), {"field_count": 0, "fields": []}
             return pd.DataFrame()
         
         openet_ids = fields['OPENET_ID'].tolist()
+        original_field_count = len(openet_ids)
+        
+        # Store field metadata for return if requested
+        field_metadata = {
+            "field_count": len(openet_ids),
+            "city": city_name,
+            "fields": []
+        }
         
         # Step 2: Apply crop filter if requested
         if crop_filter:
@@ -609,6 +791,8 @@ class LocationCropQuery:
                 openet_ids = crops_filtered['OPENET_ID'].tolist() 
                 matched_crop_names = [self.crop_names[c]['name'] for c in matching_codes[:3]]
                 print(f"Filtered to {len(openet_ids)} {'/'.join(matched_crop_names)} fields near {city_name}")
+                field_metadata["crop_filter"] = crop_filter
+                field_metadata["field_count_after_filter"] = len(openet_ids)
             else:
                 print(f"Warning: No crop found matching '{crop_filter}', using all fields")
         else:
@@ -616,16 +800,50 @@ class LocationCropQuery:
         
         if not openet_ids:
             print("No fields match the criteria")
+            if return_metadata:
+                return pd.DataFrame(), field_metadata
             return pd.DataFrame()
         
+        # Build field list for metadata
+        if return_metadata:
+            for idx, (_, field) in enumerate(fields.head(min(20, len(fields))).iterrows()):
+                if field['OPENET_ID'] in openet_ids:
+                    field_info = {
+                        "id": field['OPENET_ID'],
+                        "county": field.get('County', 'Unknown'),
+                        "nearest_city": field.get('Nearest_City_1', 'Unknown')
+                    }
+                    # Add distance if available
+                    if 'Dist_City_1_ft' in field:
+                        field_info["distance_miles"] = round(field['Dist_City_1_ft'] / 5280, 2)
+                    field_metadata["fields"].append(field_info)
+            
+            # Add truncation notice if more than 20 fields
+            if len(openet_ids) > 20:
+                field_metadata["truncated"] = True
+                field_metadata["total_fields"] = len(openet_ids)
+        
         # Step 3: Get variable timeseries
-        result = self.get_variable_timeseries(openet_ids, variable, start_date, end_date, aggregation)
+        derived_vars = {"AREA", "ACRES_FTR_GEOM", "CROP", "IRR_STATUS", "per_IRRIGATED", "IRR_EFF", "ITYPE"}
+        if variable in derived_vars:
+            result = self.get_annual_derived_timeseries(
+                openet_ids=openet_ids,
+                variable=variable,
+                start_date=start_date,
+                end_date=end_date,
+                crop_filter=crop_filter,
+                aggregation=aggregation,
+            )
+        else:
+            result = self.get_variable_timeseries(openet_ids, variable, start_date, end_date, aggregation)
         
         # Add location info
         if not result.empty:
             result['location'] = city_name
             result['location_type'] = 'city'
         
+        if return_metadata:
+            return result, field_metadata
         return result
     
     def query_variable_by_county(self, county_name: str, variable: str,
@@ -687,7 +905,18 @@ class LocationCropQuery:
             return pd.DataFrame()
         
         # Step 3: Get variable timeseries
-        result = self.get_variable_timeseries(openet_ids, variable, start_date, end_date, aggregation)
+        derived_vars = {"AREA", "ACRES_FTR_GEOM", "CROP", "IRR_STATUS", "per_IRRIGATED", "IRR_EFF", "ITYPE"}
+        if variable in derived_vars:
+            result = self.get_annual_derived_timeseries(
+                openet_ids=openet_ids,
+                variable=variable,
+                start_date=start_date,
+                end_date=end_date,
+                crop_filter=crop_filter,
+                aggregation=aggregation,
+            )
+        else:
+            result = self.get_variable_timeseries(openet_ids, variable, start_date, end_date, aggregation)
         
         # Add location info
         if not result.empty:
