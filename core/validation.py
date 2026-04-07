@@ -2,26 +2,14 @@ from __future__ import annotations
 
 import re
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 import pandas as pd
 
+from .contracts import QuerySpec
+from .variable_registry import OPENET_VARIABLES
 
 SUPPORTED_TASKS = {"visualize_timeseries", "statistical_summary", "summarize_crops"}
-OPENET_VARIABLES = {
-    "ETa",
-    "PPT",
-    "P_rz",
-    "AW",
-    "WS_C",
-    "AREA",
-    "ACRES_FTR_GEOM",
-    "CROP",
-    "IRR_STATUS",
-    "per_IRRIGATED",
-    "IRR_EFF",
-    "ITYPE",
-}
 
 
 def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -155,8 +143,52 @@ def _infer_variables(spec: Dict[str, Any], user_query: str, task: str) -> List[s
     return deduped
 
 
+def _normalize_spec_shape(spec: Dict[str, Any]) -> QuerySpec:
+    fixed: QuerySpec = cast(QuerySpec, dict(spec))
+
+    if fixed.get("dataset"):
+        fixed["dataset"] = str(fixed["dataset"]).lower().strip()  # type: ignore[assignment]
+    if fixed.get("location"):
+        fixed["location"] = str(fixed["location"]).strip()
+    if fixed.get("location_type"):
+        fixed["location_type"] = str(fixed["location_type"]).lower().strip()  # type: ignore[assignment]
+    if fixed.get("station_id"):
+        fixed["station_id"] = str(fixed["station_id"]).strip()
+    if fixed.get("chart_type"):
+        fixed["chart_type"] = str(fixed["chart_type"]).lower().strip()
+    if fixed.get("interval"):
+        fixed["interval"] = str(fixed["interval"]).lower().strip()
+    if fixed.get("aggregation"):
+        fixed["aggregation"] = str(fixed["aggregation"]).lower().strip()
+    if fixed.get("crop_filter"):
+        fixed["crop_filter"] = str(fixed["crop_filter"]).strip()
+    if fixed.get("openet_geo"):
+        fixed["openet_geo"] = str(fixed["openet_geo"]).lower().strip()
+    if fixed.get("openet_id"):
+        fixed["openet_id"] = str(fixed["openet_id"]).strip()
+    if fixed.get("huc8_code"):
+        fixed["huc8_code"] = str(fixed["huc8_code"]).strip()
+
+    variables = fixed.get("variables") or []
+    fixed["variables"] = [str(value).strip() for value in variables if str(value).strip()]
+
+    statistics = fixed.get("statistics") or []
+    fixed["statistics"] = [str(value).lower().strip() for value in statistics if str(value).strip()]
+
+    clarification_needed = fixed.get("clarification_needed") or []
+    fixed["clarification_needed"] = [str(value).strip() for value in clarification_needed if str(value).strip()]
+
+    notes = fixed.get("notes") or []
+    fixed["notes"] = [str(value).strip() for value in notes if str(value).strip()]
+
+    if fixed.get("year") is not None and str(fixed["year"]).strip():
+        fixed["year"] = int(fixed["year"])  # type: ignore[arg-type]
+
+    return fixed
+
+
 def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, Any]:
-    fixed = dict(spec or {})
+    fixed = _normalize_spec_shape(dict(spec or {}))
     task = _infer_task(fixed, user_query)
     if task not in SUPPORTED_TASKS:
         return {

@@ -14,29 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-
-VAR_LABELS = {
-    "OBM": "Avg Temp (°F)",
-    "MX": "Max Temp (°F)",
-    "MN": "Min Temp (°F)",
-    "PC": "Precipitation (mm)",
-    "SR": "Solar Radiation (Langleys)",
-    "WS": "Wind Speed (mph)",
-    "TU": "Humidity (%)",
-    "ET": "Evapotranspiration (mm)",
-    "ETa": "Evapotranspiration (in)",
-    "PPT": "Precipitation (in)",
-    "AW": "Applied Water (acre-ft)",
-    "WS_C": "Water Stress Coefficient",
-    "P_rz": "Root Zone Precip (in)",
-    "AREA": "Farmland Area (acres)",
-    "ACRES_FTR_GEOM": "Farmland Area (acres)",
-    "CROP": "Crop Field Count",
-    "IRR_STATUS": "Irrigated Fields",
-    "per_IRRIGATED": "Irrigated Share (%)",
-    "IRR_EFF": "Irrigation Efficiency",
-    "ITYPE": "Irrigation System Mode",
-}
+from .variable_registry import variable_label
 
 
 def create_crop_bar_chart(crop_summary: pd.DataFrame, location: str, year: int, 
@@ -212,7 +190,7 @@ def _json_safe_records(df: pd.DataFrame) -> list[dict]:
     return out
 
 def _label(v: str) -> str:
-    return VAR_LABELS.get(v, v)
+    return variable_label(v)
 
 def payload_to_df(payload: Dict[str, Any]) -> Tuple[Dict[str, Any], pd.DataFrame, List[str]]:
     if "spec" not in payload or "data" not in payload:

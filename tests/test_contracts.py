@@ -3,6 +3,8 @@ from __future__ import annotations
 import pandas as pd
 
 from core.contracts import build_error_result, build_preview, build_success_result
+from core.data_fetcher import get_dataset_adapter
+from core.validation import validate_and_fix_spec
 
 
 def test_build_preview_keeps_small_frames_intact():
@@ -43,3 +45,27 @@ def test_build_error_result_uses_canonical_shape():
     assert result["error"] == "boom"
     assert result["spec"] is None
     assert result["files"] == {}
+
+
+def test_validate_and_fix_spec_normalizes_queryspec_shape():
+    result = validate_and_fix_spec(
+        {
+            "dataset": "AGRIMET",
+            "location": " Corvallis ",
+            "variables": [" OBM ", " "],
+            "statistics": [" MEAN "],
+            "chart_type": "LINE",
+        },
+        "Show temperature in Corvallis for 2024",
+    )
+    assert result["dataset"] == "agrimet"
+    assert result["location"] == "Corvallis"
+    assert result["variables"] == ["OBM"]
+    assert result["statistics"] == ["mean"]
+    assert result["chart_type"] == "line"
+
+
+def test_get_dataset_adapter_exposes_contract_defaults():
+    adapter = get_dataset_adapter("openet")
+    assert adapter.contract.name == "openet"
+    assert adapter.contract.default_interval == "monthly"

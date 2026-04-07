@@ -6,8 +6,10 @@ from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
+from .contracts import DatasetAdapter, DatasetContract, QuerySpec
 from .agrimet_api import fetch_agrimet_api_data
 from .location_crop_query import LocationCropQuery
+from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,29 +30,35 @@ AGRIMET_FRIENDLY_NAMES = {
     "pendleton": "pendleton",
 }
 
+class AgrimetAdapter:
+    contract = DatasetContract(
+        name="agrimet",
+        location_kinds=("city", "station"),
+        default_interval="daily",
+        supported_variables=tuple(sorted(AGRIMET_VARIABLES)),
+        notes="AgriMet queries may require city-to-station resolution before fetch.",
+    )
 
-OPENET_ALIASES = {
-    "eta": "ETa",
-    "et": "ETa",
-    "ppt": "PPT",
-    "precip": "PPT",
-    "precipitation": "PPT",
-    "aw": "AW",
-    "ws": "WS_C",
-    "wsc": "WS_C",
-    "area": "AREA",
-    "acres": "AREA",
-    "acreage": "AREA",
-    "farmland": "AREA",
-    "crop": "CROP",
-    "crops": "CROP",
-    "irrigated": "IRR_STATUS",
-    "irrigation_status": "IRR_STATUS",
-    "percent_irrigated": "per_IRRIGATED",
-    "irrigated_share": "per_IRRIGATED",
-    "irrigation_share": "per_IRRIGATED",
-    "irrigation_efficiency": "IRR_EFF",
-    "irrigation_system": "ITYPE",
+    def fetch(self, spec: QuerySpec) -> Dict[str, Any]:
+        return fetch_agrimet_data(spec)
+
+
+class OpenETAdapter:
+    contract = DatasetContract(
+        name="openet",
+        location_kinds=("city", "county", "field"),
+        default_interval="monthly",
+        supported_variables=tuple(sorted(OPENET_VARIABLES)),
+        notes="OpenET supports location, field, and HUC-style queries depending on spec fields.",
+    )
+
+    def fetch(self, spec: QuerySpec) -> Dict[str, Any]:
+        return fetch_openet_data(spec)
+
+
+DATASET_ADAPTERS: Dict[str, DatasetAdapter] = {
+    "agrimet": AgrimetAdapter(),
+    "openet": OpenETAdapter(),
 }
 
 
@@ -98,7 +106,7 @@ def _normalize_openet_vars(values: List[str]) -> List[str]:
     for value in values or []:
         if not isinstance(value, str):
             continue
-        normalized.append(OPENET_ALIASES.get(value.strip().lower(), value.strip()))
+        normalized.append(normalize_openet_variable(value))
     return normalized
 
 
@@ -289,10 +297,15 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     return {"spec": spec, "data": {"records": wide.to_dict(orient="records")}}
 
 
+def get_dataset_adapter(dataset: str) -> DatasetAdapter:
+    normalized = (dataset or "agrimet").lower().strip()
+    adapter = DATASET_ADAPTERS.get(normalized)
+    if adapter is None:
+        raise ValueError(f"Unknown dataset: {normalized}")
+    return adapter
+
+
 def fetch_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     dataset = (spec.get("dataset") or "agrimet").lower().strip()
-    if dataset == "agrimet":
-        return fetch_agrimet_data(spec)
-    if dataset == "openet":
-        return fetch_openet_data(spec)
-    raise ValueError(f"Unknown dataset: {dataset}")
+    adapter = get_dataset_adapter(dataset)
+    return adapter.fetch(spec)
