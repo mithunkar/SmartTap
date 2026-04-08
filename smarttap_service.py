@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -14,9 +15,10 @@ os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir.parent))
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from core.contracts import build_error_result, build_preview, build_success_result
-from core.data_fetcher import fetch_data
+from core.contracts import build_clarification_result, build_error_result, build_preview, build_success_result
+from core.data_fetcher import fetch_data, supported_agrimet_locations
 from core.location_crop_query import LocationCropQuery
+from core.variable_registry import variable_label
 from core.validation import validate_and_fix_spec, validate_payload
 from core.visualizer import create_crop_bar_chart, payload_to_df, png_bytes, vega_spec
 from llm.interpretation import get_task_specification
@@ -24,6 +26,14 @@ from llm.interpretation import get_task_specification
 
 class SmartTapError(Exception):
     pass
+
+
+CLARIFICATION_LABELS = {
+    "location": "the location you want to analyze",
+    "time_range": "the time range to plot",
+    "variable": "the variable or measurement you want",
+    "station": "which AgriMet station or supported city to use",
+}
 
 
 def _output_paths(base_name: str) -> Dict[str, Path]:
@@ -107,6 +117,194 @@ def _build_stat_png(variable: str, stats: Dict[str, float]) -> bytes:
     fig.savefig(buffer, format="png", dpi=160)
     plt.close(fig)
     return buffer.getvalue()
+
+
+def _task_label(task: str) -> str:
+    labels = {
+        "visualize_timeseries": "time-series chart",
+        "statistical_summary": "statistical summary",
+        "summarize_crops": "crop summary",
+    }
+    return labels.get(task, task)
+
+
+def _partial_spec_summary(spec: Dict[str, Any]) -> str:
+    parts: list[str] = []
+    if spec.get("task"):
+        parts.append(f"task={_task_label(str(spec['task']))}")
+    if spec.get("dataset"):
+        parts.append(f"dataset={spec['dataset']}")
+    if spec.get("variables"):
+        labels = [variable_label(value) for value in spec["variables"]]
+        parts.append(f"variables={', '.join(labels)}")
+    if spec.get("location"):
+        parts.append(f"location={spec['location']}")
+    if spec.get("crop_filter"):
+        parts.append(f"crop={spec['crop_filter']}")
+    if spec.get("start_date") and spec.get("end_date"):
+        parts.append(f"date_range={spec['start_date']} to {spec['end_date']}")
+    return "; ".join(parts)
+
+
+def _clarification_prompt(spec: Dict[str, Any]) -> str:
+    fields = spec.get("clarification_needed") or []
+    if not fields:
+        return "Please add a little more detail so I can finish the request."
+
+    prompts = [CLARIFICATION_LABELS.get(field, field.replace("_", " ")) for field in fields]
+    if len(prompts) == 1:
+        missing_text = prompts[0]
+    elif len(prompts) == 2:
+        missing_text = f"{prompts[0]} and {prompts[1]}"
+    else:
+        missing_text = ", ".join(prompts[:-1]) + f", and {prompts[-1]}"
+
+    examples: list[str] = []
+    if "location" in fields:
+        examples.append("a city or county, like Corvallis or Benton County")
+    if "time_range" in fields:
+        examples.append("a year or date range, like 2024 or January to June 2024")
+    if "variable" in fields:
+        examples.append("a measurement, like temperature, ETa, precipitation, or applied water")
+
+    prompt = f"I need {missing_text} before I can run this request."
+
+    context = _partial_spec_summary(spec)
+    if context:
+        prompt += f" So far I have: {context}."
+
+    if spec.get("dataset") == "agrimet":
+        if "location" in fields:
+            supported = ", ".join(supported_agrimet_locations())
+            examples.append(f"one of the currently supported local AgriMet cities: {supported}")
+        if "station" in fields:
+            supported = ", ".join(supported_agrimet_locations())
+            prompt += (
+                f" The current local AgriMet dataset only supports these cities/stations: {supported}."
+            )
+            examples.append(f"a supported station/city such as {supported_agrimet_locations()[0]}")
+
+    if spec.get("dataset") == "openet" and "location" in fields:
+        examples.append("an Oregon city or county, like Corvallis or Benton County")
+
+    if spec.get("task") == "summarize_crops" and "location" in fields:
+        examples.append("a city or county, like Corvallis or Benton County")
+
+    if examples:
+        prompt += " You can reply with " + "; ".join(dict.fromkeys(examples)) + "."
+    return prompt
+
+
+def _clean_followup_location(text: str) -> str:
+    cleaned = re.sub(r"\b(in|for|near|around|at|during|from|to)\b", " ", text, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b(19|20)\d{2}\b", " ", cleaned)
+    cleaned = re.sub(r"[^A-Za-z\s]", " ", cleaned)
+    cleaned = " ".join(cleaned.split())
+    return cleaned.strip()
+
+
+def _followup_mentions_time_range(text: str) -> bool:
+    lowered = (text or "").lower()
+    if re.search(r"\b(19\d{2}|20\d{2})\b", lowered):
+        return True
+    time_tokens = [
+        "last year",
+        "this year",
+        "yesterday",
+        "today",
+        "this month",
+        "last month",
+        "from",
+        "between",
+        "through",
+        "during",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+    ]
+    return any(token in lowered for token in time_tokens)
+
+
+def _extract_followup_patch(followup_query: str, pending_spec: Dict[str, Any]) -> Dict[str, Any]:
+    patch: Dict[str, Any] = {}
+    clarification_fields = list(pending_spec.get("clarification_needed") or [])
+
+    raw_patch: Dict[str, Any] = {}
+    try:
+        raw_patch = get_task_specification(followup_query)
+    except Exception:
+        raw_patch = {}
+
+    normalized_patch = validate_and_fix_spec(raw_patch, followup_query)
+
+    if "variable" in clarification_fields and normalized_patch.get("variables"):
+        patch["variables"] = normalized_patch["variables"]
+        if normalized_patch.get("dataset"):
+            patch["dataset"] = normalized_patch["dataset"]
+        if normalized_patch.get("interval"):
+            patch["interval"] = normalized_patch["interval"]
+
+    if "time_range" in clarification_fields and _followup_mentions_time_range(followup_query):
+        if normalized_patch.get("start_date") and normalized_patch.get("end_date"):
+            patch["start_date"] = normalized_patch["start_date"]
+            patch["end_date"] = normalized_patch["end_date"]
+        elif normalized_patch.get("year"):
+            year = int(normalized_patch["year"])
+            patch["start_date"] = f"{year}-01-01"
+            patch["end_date"] = f"{year}-12-31"
+
+    if "location" in clarification_fields or "station" in clarification_fields:
+        if raw_patch.get("location"):
+            patch["location"] = str(raw_patch["location"]).strip()
+        elif normalized_patch.get("location"):
+            patch["location"] = str(normalized_patch["location"]).strip()
+        else:
+            candidate = _clean_followup_location(followup_query)
+            if candidate:
+                patch["location"] = candidate
+
+        if raw_patch.get("location_type"):
+            patch["location_type"] = str(raw_patch["location_type"]).lower().strip()
+        elif normalized_patch.get("location_type") and patch.get("location"):
+            patch["location_type"] = str(normalized_patch["location_type"]).lower().strip()
+
+        if raw_patch.get("station_id"):
+            patch["station_id"] = str(raw_patch["station_id"]).strip()
+        elif normalized_patch.get("station_id"):
+            patch["station_id"] = str(normalized_patch["station_id"]).strip()
+
+    return patch
+
+
+def process_clarification_reply(
+    followup_query: str,
+    pending_spec: Dict[str, Any],
+    original_query: str,
+) -> Dict[str, Any]:
+    merged_spec = dict(pending_spec)
+    merged_spec.pop("clarification_needed", None)
+    patch = _extract_followup_patch(followup_query, pending_spec)
+    confirmed_fields = set(merged_spec.get("confirmed_fields") or [])
+    if patch.get("location") or patch.get("station_id"):
+        confirmed_fields.add("location")
+    if patch.get("start_date") and patch.get("end_date"):
+        confirmed_fields.add("time_range")
+    if patch.get("variables"):
+        confirmed_fields.add("variable")
+    if confirmed_fields:
+        merged_spec["confirmed_fields"] = sorted(confirmed_fields)
+    merged_spec.update({key: value for key, value in patch.items() if value not in (None, "", [], {})})
+    combined_query = f"{original_query}\n{followup_query}"
+    return process_query(combined_query, spec=merged_spec)
 
 
 def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
@@ -250,6 +448,12 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
 
         if fixed_spec.get("task") == "error":
             return build_error_result(fixed_spec.get("error_message", "Invalid query."))
+        if fixed_spec.get("clarification_needed"):
+            return build_clarification_result(
+                spec=fixed_spec,
+                prompt=_clarification_prompt(fixed_spec),
+                fields=list(fixed_spec.get("clarification_needed") or []),
+            )
 
         task = fixed_spec["task"]
         paths = _output_paths(_base_name())

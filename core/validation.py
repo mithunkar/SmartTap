@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from datetime import date
 from typing import Any, Dict, List, cast
@@ -7,6 +8,7 @@ from typing import Any, Dict, List, cast
 import pandas as pd
 
 from .contracts import QuerySpec
+from .data_fetcher import supported_agrimet_locations
 from .variable_registry import OPENET_VARIABLES
 
 SUPPORTED_TASKS = {"visualize_timeseries", "statistical_summary", "summarize_crops"}
@@ -70,6 +72,55 @@ def _infer_location_type(spec: Dict[str, Any]) -> str:
     return "county" if location.endswith(" county") else "city"
 
 
+def _normalize_free_text(value: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", (value or "").lower())
+    return " ".join(cleaned.split())
+
+
+def _query_mentions_location(user_query: str, location: str) -> bool:
+    normalized_query = f" {_normalize_free_text(user_query)} "
+    normalized_location = _normalize_free_text(location)
+    if not normalized_location:
+        return False
+
+    candidates = {normalized_location}
+    if normalized_location.endswith(" county"):
+        candidates.add(normalized_location[: -len(" county")].strip())
+
+    return any(f" {candidate} " in normalized_query for candidate in candidates if candidate)
+
+
+def _query_mentions_time_range(user_query: str) -> bool:
+    lowered = (user_query or "").lower()
+    if re.search(r"\b(19\d{2}|20\d{2})\b", lowered):
+        return True
+    time_tokens = [
+        "last year",
+        "this year",
+        "yesterday",
+        "today",
+        "this month",
+        "last month",
+        "from",
+        "between",
+        "through",
+        "during",
+        "january",
+        "february",
+        "march",
+        "april",
+        "may",
+        "june",
+        "july",
+        "august",
+        "september",
+        "october",
+        "november",
+        "december",
+    ]
+    return any(token in lowered for token in time_tokens)
+
+
 def _infer_dataset(spec: Dict[str, Any], user_query: str, variables: List[str]) -> str:
     if spec.get("dataset"):
         return str(spec["dataset"]).lower()
@@ -90,9 +141,11 @@ def _infer_dates(spec: Dict[str, Any], user_query: str, task: str) -> Dict[str, 
         return {"start_date": spec["start_date"], "end_date": spec["end_date"]}
 
     years = _extract_years(" ".join(str(spec.get(key, "")) for key in ["year", "start_date", "end_date"]) + " " + (user_query or ""))
-    fallback_year = years[-1] if years else max(date.today().year - 1, 2024)
     if task == "summarize_crops":
         return {}
+    if not years:
+        return {}
+    fallback_year = years[-1]
     return {
         "start_date": spec.get("start_date") or f"{fallback_year}-01-01",
         "end_date": spec.get("end_date") or f"{fallback_year}-12-31",
@@ -143,6 +196,45 @@ def _infer_variables(spec: Dict[str, Any], user_query: str, task: str) -> List[s
     return deduped
 
 
+def _needs_location(spec: QuerySpec, task: str) -> bool:
+    if task == "summarize_crops":
+        return True
+    if spec.get("dataset") == "openet" and (spec.get("openet_geo") == "field" or spec.get("openet_id") or spec.get("huc8_code")):
+        return False
+    return True
+
+
+def collect_clarification_fields(spec: QuerySpec) -> List[str]:
+    task = spec.get("task", "")
+    missing: List[str] = []
+
+    if task in {"visualize_timeseries", "statistical_summary"} and not spec.get("variables"):
+        missing.append("variable")
+    if _needs_location(spec, task) and not spec.get("location"):
+        missing.append("location")
+    if task == "visualize_timeseries" and (not spec.get("start_date") or not spec.get("end_date")):
+        missing.append("time_range")
+    if task == "summarize_crops" and not spec.get("location"):
+        missing.append("location")
+    if (
+        spec.get("dataset") == "agrimet"
+        and spec.get("location")
+        and not spec.get("station_id")
+        and os.getenv("AGRIMET_USE_API") != "1"
+    ):
+        normalized = str(spec.get("location", "")).strip().lower()
+        if normalized not in supported_agrimet_locations():
+            missing.append("station")
+
+    seen = set()
+    ordered: List[str] = []
+    for field in missing:
+        if field not in seen:
+            ordered.append(field)
+            seen.add(field)
+    return ordered
+
+
 def _normalize_spec_shape(spec: Dict[str, Any]) -> QuerySpec:
     fixed: QuerySpec = cast(QuerySpec, dict(spec))
 
@@ -178,6 +270,9 @@ def _normalize_spec_shape(spec: Dict[str, Any]) -> QuerySpec:
     clarification_needed = fixed.get("clarification_needed") or []
     fixed["clarification_needed"] = [str(value).strip() for value in clarification_needed if str(value).strip()]
 
+    confirmed_fields = fixed.get("confirmed_fields") or []
+    fixed["confirmed_fields"] = [str(value).strip() for value in confirmed_fields if str(value).strip()]
+
     notes = fixed.get("notes") or []
     fixed["notes"] = [str(value).strip() for value in notes if str(value).strip()]
 
@@ -189,6 +284,28 @@ def _normalize_spec_shape(spec: Dict[str, Any]) -> QuerySpec:
 
 def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, Any]:
     fixed = _normalize_spec_shape(dict(spec or {}))
+    confirmed_fields = set(fixed.get("confirmed_fields") or [])
+    if (
+        fixed.get("location")
+        and "location" not in confirmed_fields
+        and not _query_mentions_location(user_query, str(fixed["location"]))
+    ):
+        fixed.pop("location", None)
+        fixed.pop("station_id", None)
+        notes = list(fixed.get("notes") or [])
+        notes.append("Dropped parser-supplied location because it was not mentioned in the user query.")
+        fixed["notes"] = notes
+    if (
+        (fixed.get("start_date") or fixed.get("end_date"))
+        and "time_range" not in confirmed_fields
+        and not _query_mentions_time_range(user_query)
+    ):
+        fixed.pop("start_date", None)
+        fixed.pop("end_date", None)
+        notes = list(fixed.get("notes") or [])
+        notes.append("Dropped parser-supplied time range because it was not mentioned in the user query.")
+        fixed["notes"] = notes
+
     task = _infer_task(fixed, user_query)
     if task not in SUPPORTED_TASKS:
         return {
@@ -199,30 +316,31 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
 
     if task == "summarize_crops":
         if not fixed.get("location"):
-            return {"task": "error", "error_message": "Crop summary requires a city or county location."}
+            fixed["clarification_needed"] = ["location"]
+            return fixed
         fixed["location_type"] = _infer_location_type(fixed)
         years = _extract_years(str(fixed.get("year", "")) + " " + (user_query or ""))
         fixed["year"] = int(fixed.get("year") or (years[-1] if years else 2024))
         fixed["dataset"] = "openet"
+        fixed["clarification_needed"] = collect_clarification_fields(fixed)
         return fixed
 
     fixed["variables"] = _infer_variables(fixed, user_query, task)
-    if not fixed["variables"]:
-        return {"task": "error", "error_message": "Could not infer a variable from the query."}
+    if fixed["variables"]:
+        fixed["dataset"] = _infer_dataset(fixed, user_query, fixed["variables"])
+        fixed["location_type"] = _infer_location_type(fixed)
+        fixed["chart_type"] = fixed.get("chart_type") or "line"
+        fixed["interval"] = fixed.get("interval") or ("monthly" if fixed["dataset"] == "openet" else "daily")
+        if fixed["dataset"] == "openet":
+            fixed["openet_geo"] = fixed.get("openet_geo") or ("location" if fixed.get("location") else "huc8")
+    else:
+        fixed["chart_type"] = fixed.get("chart_type") or "line"
 
-    fixed["dataset"] = _infer_dataset(fixed, user_query, fixed["variables"])
-    fixed["location_type"] = _infer_location_type(fixed)
-    fixed["chart_type"] = fixed.get("chart_type") or "line"
-    fixed["interval"] = fixed.get("interval") or ("monthly" if fixed["dataset"] == "openet" else "daily")
-    fixed.update(_infer_dates(fixed, user_query, task))
-
-    if not fixed.get("location") and fixed["dataset"] == "agrimet":
-        fixed["location"] = "corvallis"
-
-    if fixed["dataset"] == "openet":
-        fixed["openet_geo"] = fixed.get("openet_geo") or ("location" if fixed.get("location") else "huc8")
+    if task == "visualize_timeseries":
+        fixed.update(_infer_dates(fixed, user_query, task))
 
     if task == "statistical_summary":
         fixed["statistics"] = fixed.get("statistics") or ["mean"]
 
+    fixed["clarification_needed"] = collect_clarification_fields(fixed)
     return fixed

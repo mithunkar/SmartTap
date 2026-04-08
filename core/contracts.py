@@ -32,6 +32,7 @@ class QuerySpec(TypedDict, total=False):
     openet_id: str
     huc8_code: str
     clarification_needed: List[str]
+    confirmed_fields: List[str]
     notes: List[str]
 
 
@@ -45,6 +46,7 @@ class VisualizationResult(TypedDict):
     """Canonical UI/service output contract for successful and failed runs."""
 
     success: bool
+    needs_clarification: bool
     error: str | None
     spec: QuerySpec | None
     summary: Dict[str, Any]
@@ -54,6 +56,8 @@ class VisualizationResult(TypedDict):
     vega_spec: Dict[str, Any] | None
     files: VisualizationFiles
     validation_report: Dict[str, Any] | None
+    clarification_prompt: str | None
+    clarification_fields: List[str]
 
 
 @dataclass(frozen=True)
@@ -104,6 +108,7 @@ def build_success_result(
 ) -> VisualizationResult:
     return {
         "success": True,
+        "needs_clarification": False,
         "error": None,
         "spec": spec,
         "summary": summary,
@@ -113,12 +118,15 @@ def build_success_result(
         "vega_spec": vega_spec,
         "files": files,
         "validation_report": validation_report,
+        "clarification_prompt": None,
+        "clarification_fields": [],
     }
 
 
 def build_error_result(message: str) -> VisualizationResult:
     return {
         "success": False,
+        "needs_clarification": False,
         "error": message,
         "spec": None,
         "summary": {},
@@ -128,5 +136,29 @@ def build_error_result(message: str) -> VisualizationResult:
         "vega_spec": None,
         "files": {},
         "validation_report": None,
+        "clarification_prompt": None,
+        "clarification_fields": [],
     }
 
+
+def build_clarification_result(
+    *,
+    spec: QuerySpec,
+    prompt: str,
+    fields: List[str],
+) -> VisualizationResult:
+    return {
+        "success": False,
+        "needs_clarification": True,
+        "error": None,
+        "spec": spec,
+        "summary": {"status": "clarification_needed"},
+        "data_preview": None,
+        "data": None,
+        "chart_bytes": None,
+        "vega_spec": None,
+        "files": {},
+        "validation_report": None,
+        "clarification_prompt": prompt,
+        "clarification_fields": fields,
+    }

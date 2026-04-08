@@ -62,6 +62,10 @@ DATASET_ADAPTERS: Dict[str, DatasetAdapter] = {
 }
 
 
+def supported_agrimet_locations() -> List[str]:
+    return sorted(AGRIMET_FRIENDLY_NAMES.keys())
+
+
 def _normalize_agrimet_location(location: str) -> str:
     cleaned = (location or "").strip().lower().replace("_", " ")
     return " ".join(cleaned.split())

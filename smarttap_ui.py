@@ -7,7 +7,7 @@ from datetime import datetime
 import streamlit as st
 from PIL import Image
 
-from smarttap_service import process_query
+from smarttap_service import process_clarification_reply, process_query
 
 
 def _init_state() -> None:
@@ -19,6 +19,8 @@ def _init_state() -> None:
         "current_spec": None,
         "current_vega_spec": None,
         "current_files": None,
+        "pending_query": None,
+        "pending_spec": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -89,13 +91,38 @@ def _render_sidebar() -> None:
                 "current_spec",
                 "current_vega_spec",
                 "current_files",
+                "pending_query",
+                "pending_spec",
             ]:
                 st.session_state[key] = [] if key == "messages" else None
             st.rerun()
 
 
+def _looks_like_new_query(query: str) -> bool:
+    stripped = (query or "").strip().lower()
+    if not stripped:
+        return False
+
+    starters = {
+        "show",
+        "display",
+        "plot",
+        "what",
+        "how",
+        "which",
+        "compare",
+        "list",
+        "summarize",
+        "give",
+    }
+    first_word = stripped.split()[0]
+    return first_word in starters
+
+
 def _append_result_message(query: str, result: dict) -> None:
-    if result["success"]:
+    if result.get("needs_clarification"):
+        st.session_state.messages.append({"role": "assistant", "content": result["clarification_prompt"]})
+    elif result["success"]:
         summary_lines = [f"Generated a `{result['spec']['task']}` result for: {query}"]
         for key, value in result["summary"].items():
             summary_lines.append(f"- **{key.replace('_', ' ').title()}**: {value}")
@@ -104,10 +131,35 @@ def _append_result_message(query: str, result: dict) -> None:
         st.session_state.messages.append({"role": "assistant", "content": f"Error: {result['error']}"})
 
 
+def _display_spec(spec: dict | None) -> dict:
+    if not spec:
+        return {}
+
+    display = {}
+    for key, value in spec.items():
+        if key == "notes":
+            continue
+        if value in (None, "", [], {}):
+            continue
+        display[key] = value
+    return display
+
+
 def _run_query(query: str) -> None:
     st.session_state.messages.append({"role": "user", "content": query})
+    if st.session_state.pending_query and _looks_like_new_query(query):
+        st.session_state.pending_query = None
+        st.session_state.pending_spec = None
+
     with st.spinner("Running SmartTap..."):
-        result = process_query(query)
+        if st.session_state.pending_query and st.session_state.pending_spec and not _looks_like_new_query(query):
+            result = process_clarification_reply(
+                followup_query=query,
+                pending_spec=st.session_state.pending_spec,
+                original_query=st.session_state.pending_query,
+            )
+        else:
+            result = process_query(query)
 
     if result["success"]:
         st.session_state.current_chart = result.get("chart_bytes")
@@ -116,6 +168,11 @@ def _run_query(query: str) -> None:
         st.session_state.current_spec = result.get("spec")
         st.session_state.current_vega_spec = result.get("vega_spec")
         st.session_state.current_files = result.get("files")
+        st.session_state.pending_query = None
+        st.session_state.pending_spec = None
+    elif result.get("needs_clarification"):
+        st.session_state.pending_query = st.session_state.pending_query or query
+        st.session_state.pending_spec = result.get("spec")
 
     _append_result_message(query, result)
 
@@ -136,6 +193,12 @@ def _render_chat() -> None:
 
 def _render_results() -> None:
     st.subheader("Results")
+    resolved_spec = st.session_state.pending_spec or st.session_state.current_spec
+    if resolved_spec:
+        title = "Resolved Request (Pending Clarification)" if st.session_state.pending_spec else "Resolved Request"
+        with st.expander(title, expanded=True):
+            st.json(_display_spec(resolved_spec))
+
     if st.session_state.current_chart:
         image = Image.open(io.BytesIO(st.session_state.current_chart))
         st.image(image, use_container_width=True)
