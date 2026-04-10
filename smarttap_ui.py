@@ -7,7 +7,7 @@ from datetime import datetime
 import streamlit as st
 from PIL import Image
 
-from smarttap_service import process_clarification_reply, process_query
+from smarttap_service import process_query
 
 
 def _init_state() -> None:
@@ -19,8 +19,7 @@ def _init_state() -> None:
         "current_spec": None,
         "current_vega_spec": None,
         "current_files": None,
-        "pending_query": None,
-        "pending_spec": None,
+        "current_explanation": None,        # ← NEW
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -44,13 +43,27 @@ def _render_header() -> None:
                 color: #f8f5ef;
                 margin-bottom: 1rem;
             }
-            .smarttap-title h1 {
-                margin: 0;
-                color: #f8f5ef;
+            .smarttap-title h1 { margin: 0; color: #f8f5ef; }
+            .smarttap-title p  { margin: 0.4rem 0 0; color: #d8d0c3; }
+
+            /* Plain-English explanation card */
+            .explanation-card {
+                background: #f0f7f4;
+                border-left: 4px solid #2e7d52;
+                border-radius: 8px;
+                padding: 14px 18px;
+                margin-top: 12px;
+                font-size: 1.0rem;
+                line-height: 1.6;
+                color: #1a1a1a;
             }
-            .smarttap-title p {
-                margin: 0.4rem 0 0;
-                color: #d8d0c3;
+            .explanation-card .explain-label {
+                font-size: 0.78rem;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: #2e7d52;
+                margin-bottom: 6px;
             }
         </style>
         <div class="smarttap-title">
@@ -91,88 +104,38 @@ def _render_sidebar() -> None:
                 "current_spec",
                 "current_vega_spec",
                 "current_files",
-                "pending_query",
-                "pending_spec",
+                "current_explanation",      # ← NEW
             ]:
                 st.session_state[key] = [] if key == "messages" else None
             st.rerun()
 
 
-def _looks_like_new_query(query: str) -> bool:
-    stripped = (query or "").strip().lower()
-    if not stripped:
-        return False
-
-    starters = {
-        "show",
-        "display",
-        "plot",
-        "what",
-        "how",
-        "which",
-        "compare",
-        "list",
-        "summarize",
-        "give",
-    }
-    first_word = stripped.split()[0]
-    return first_word in starters
-
-
 def _append_result_message(query: str, result: dict) -> None:
-    if result.get("needs_clarification"):
-        st.session_state.messages.append({"role": "assistant", "content": result["clarification_prompt"]})
-    elif result["success"]:
+    if result["success"]:
         summary_lines = [f"Generated a `{result['spec']['task']}` result for: {query}"]
         for key, value in result["summary"].items():
             summary_lines.append(f"- **{key.replace('_', ' ').title()}**: {value}")
+        # Also append the explanation as a quoted block in the chat
+        if result.get("explanation"):
+            summary_lines.append(f"\n> 💬 {result['explanation']}")
         st.session_state.messages.append({"role": "assistant", "content": "\n".join(summary_lines)})
     else:
         st.session_state.messages.append({"role": "assistant", "content": f"Error: {result['error']}"})
 
 
-def _display_spec(spec: dict | None) -> dict:
-    if not spec:
-        return {}
-
-    display = {}
-    for key, value in spec.items():
-        if key == "notes":
-            continue
-        if value in (None, "", [], {}):
-            continue
-        display[key] = value
-    return display
-
-
 def _run_query(query: str) -> None:
     st.session_state.messages.append({"role": "user", "content": query})
-    if st.session_state.pending_query and _looks_like_new_query(query):
-        st.session_state.pending_query = None
-        st.session_state.pending_spec = None
-
     with st.spinner("Running SmartTap..."):
-        if st.session_state.pending_query and st.session_state.pending_spec and not _looks_like_new_query(query):
-            result = process_clarification_reply(
-                followup_query=query,
-                pending_spec=st.session_state.pending_spec,
-                original_query=st.session_state.pending_query,
-            )
-        else:
-            result = process_query(query)
+        result = process_query(query)
 
     if result["success"]:
-        st.session_state.current_chart = result.get("chart_bytes")
-        st.session_state.current_data = result.get("data_preview")
-        st.session_state.current_summary = result.get("summary")
-        st.session_state.current_spec = result.get("spec")
-        st.session_state.current_vega_spec = result.get("vega_spec")
-        st.session_state.current_files = result.get("files")
-        st.session_state.pending_query = None
-        st.session_state.pending_spec = None
-    elif result.get("needs_clarification"):
-        st.session_state.pending_query = st.session_state.pending_query or query
-        st.session_state.pending_spec = result.get("spec")
+        st.session_state.current_chart       = result.get("chart_bytes")
+        st.session_state.current_data        = result.get("data_preview")
+        st.session_state.current_summary     = result.get("summary")
+        st.session_state.current_spec        = result.get("spec")
+        st.session_state.current_vega_spec   = result.get("vega_spec")
+        st.session_state.current_files       = result.get("files")
+        st.session_state.current_explanation = result.get("explanation", "")   # ← NEW
 
     _append_result_message(query, result)
 
@@ -191,17 +154,32 @@ def _render_chat() -> None:
         st.rerun()
 
 
+def _render_explanation_card(explanation: str) -> None:
+    """Render the plain-English explanation in a styled green card."""
+    if not explanation:
+        return
+    st.markdown(
+        f"""
+        <div class="explanation-card">
+            <div class="explain-label">📖 What this means</div>
+            {explanation}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _render_results() -> None:
     st.subheader("Results")
-    resolved_spec = st.session_state.pending_spec or st.session_state.current_spec
-    if resolved_spec:
-        title = "Resolved Request (Pending Clarification)" if st.session_state.pending_spec else "Resolved Request"
-        with st.expander(title, expanded=True):
-            st.json(_display_spec(resolved_spec))
 
     if st.session_state.current_chart:
         image = Image.open(io.BytesIO(st.session_state.current_chart))
         st.image(image, use_container_width=True)
+
+        # ── Plain-English explanation card directly under the chart ──────────
+        _render_explanation_card(st.session_state.current_explanation or "")
+        # ─────────────────────────────────────────────────────────────────────
+
         st.download_button(
             "Download Chart",
             data=st.session_state.current_chart,
