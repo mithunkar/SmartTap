@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import io
 import json
+from html import escape
 from datetime import datetime
 
 import streamlit as st
 from PIL import Image
 
-from smarttap_service import process_query
+from smarttap_service import process_clarification_reply, process_query
 
 
 def _init_state() -> None:
@@ -15,11 +16,13 @@ def _init_state() -> None:
         "messages": [],
         "current_chart": None,
         "current_data": None,
-        "current_summary": None,
+        "current_details": None,
         "current_spec": None,
         "current_vega_spec": None,
         "current_files": None,
-        "current_explanation": None,        # ← NEW
+        "current_explanation": None,
+        "pending_spec": None,
+        "original_query": None,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -100,11 +103,13 @@ def _render_sidebar() -> None:
                 "messages",
                 "current_chart",
                 "current_data",
-                "current_summary",
+                "current_details",
                 "current_spec",
                 "current_vega_spec",
                 "current_files",
-                "current_explanation",      # ← NEW
+                "current_explanation",
+                "pending_spec",
+                "original_query",
             ]:
                 st.session_state[key] = [] if key == "messages" else None
             st.rerun()
@@ -112,13 +117,10 @@ def _render_sidebar() -> None:
 
 def _append_result_message(query: str, result: dict) -> None:
     if result["success"]:
-        summary_lines = [f"Generated a `{result['spec']['task']}` result for: {query}"]
-        for key, value in result["summary"].items():
-            summary_lines.append(f"- **{key.replace('_', ' ').title()}**: {value}")
-        # Also append the explanation as a quoted block in the chat
-        if result.get("explanation"):
-            summary_lines.append(f"\n> 💬 {result['explanation']}")
-        st.session_state.messages.append({"role": "assistant", "content": "\n".join(summary_lines)})
+        task = result["spec"]["task"]
+        st.session_state.messages.append({"role": "assistant", "content": f"Generated a `{task}` result for: {query}"})
+    elif result.get("needs_clarification"):
+        st.session_state.messages.append({"role": "assistant", "content": result["clarification_prompt"]})
     else:
         st.session_state.messages.append({"role": "assistant", "content": f"Error: {result['error']}"})
 
@@ -126,16 +128,28 @@ def _append_result_message(query: str, result: dict) -> None:
 def _run_query(query: str) -> None:
     st.session_state.messages.append({"role": "user", "content": query})
     with st.spinner("Running SmartTap..."):
-        result = process_query(query)
+        if st.session_state.pending_spec is not None and st.session_state.original_query:
+            result = process_clarification_reply(
+                followup_query=query,
+                pending_spec=st.session_state.pending_spec,
+                original_query=st.session_state.original_query,
+            )
+        else:
+            result = process_query(query)
 
     if result["success"]:
         st.session_state.current_chart       = result.get("chart_bytes")
         st.session_state.current_data        = result.get("data_preview")
-        st.session_state.current_summary     = result.get("summary")
+        st.session_state.current_details     = result.get("summary")
         st.session_state.current_spec        = result.get("spec")
         st.session_state.current_vega_spec   = result.get("vega_spec")
         st.session_state.current_files       = result.get("files")
-        st.session_state.current_explanation = result.get("explanation", "")   # ← NEW
+        st.session_state.current_explanation = result.get("explanation", "")
+        st.session_state.pending_spec        = None
+        st.session_state.original_query      = None
+    elif result.get("needs_clarification"):
+        st.session_state.pending_spec = result.get("spec")
+        st.session_state.original_query = st.session_state.original_query or query
 
     _append_result_message(query, result)
 
@@ -155,18 +169,56 @@ def _render_chat() -> None:
 
 
 def _render_explanation_card(explanation: str) -> None:
-    """Render the plain-English explanation in a styled green card."""
     if not explanation:
         return
+    safe_explanation = escape(explanation)
     st.markdown(
         f"""
         <div class="explanation-card">
             <div class="explain-label">📖 What this means</div>
-            {explanation}
+            {safe_explanation}
         </div>
         """,
         unsafe_allow_html=True,
     )
+
+
+def _render_result_details() -> None:
+    details = st.session_state.current_details or {}
+    spec = st.session_state.current_spec or {}
+    if not details and not spec:
+        return
+
+    with st.expander("Result Details", expanded=True):
+        if details:
+            st.markdown("**Metadata**")
+            for key, value in details.items():
+                if key == "variables_list":
+                    continue
+                st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
+
+        if spec:
+            st.markdown("**Resolved Request**")
+            display_keys = [
+                "task",
+                "dataset",
+                "location",
+                "location_type",
+                "station_id",
+                "variables",
+                "start_date",
+                "end_date",
+                "year",
+                "interval",
+                "chart_type",
+                "aggregation",
+                "crop_filter",
+            ]
+            for key in display_keys:
+                value = spec.get(key)
+                if value in (None, "", [], {}):
+                    continue
+                st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
 
 
 def _render_results() -> None:
@@ -176,9 +228,7 @@ def _render_results() -> None:
         image = Image.open(io.BytesIO(st.session_state.current_chart))
         st.image(image, use_container_width=True)
 
-        # ── Plain-English explanation card directly under the chart ──────────
         _render_explanation_card(st.session_state.current_explanation or "")
-        # ─────────────────────────────────────────────────────────────────────
 
         st.download_button(
             "Download Chart",
@@ -189,10 +239,7 @@ def _render_results() -> None:
     else:
         st.info("Run a query to see a visualization.")
 
-    if st.session_state.current_summary:
-        st.subheader("Summary")
-        for key, value in st.session_state.current_summary.items():
-            st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
+    _render_result_details()
 
     if st.session_state.current_data is not None:
         st.subheader("Data Preview")

@@ -28,6 +28,7 @@ def test_build_success_result_uses_canonical_shape():
     result = build_success_result(
         spec={"task": "visualize_timeseries", "dataset": "agrimet"},
         summary={"row_count": 1},
+        explanation="This chart shows one value.",
         data_preview=preview,
         chart_bytes=b"png",
         vega_spec={"mark": "line"},
@@ -36,6 +37,7 @@ def test_build_success_result_uses_canonical_shape():
     )
     assert result["success"] is True
     assert result["error"] is None
+    assert result["explanation"] == "This chart shows one value."
     assert result["data"] is preview
     assert result["files"]["png"].endswith(".png")
 
@@ -44,6 +46,7 @@ def test_build_error_result_uses_canonical_shape():
     result = build_error_result("boom")
     assert result["success"] is False
     assert result["error"] == "boom"
+    assert result["explanation"] == ""
     assert result["spec"] is None
     assert result["files"] == {}
 
@@ -56,6 +59,7 @@ def test_build_clarification_result_uses_canonical_shape():
     )
     assert result["success"] is False
     assert result["needs_clarification"] is True
+    assert result["explanation"] == ""
     assert result["clarification_prompt"] == "Need location"
     assert result["clarification_fields"] == ["location"]
 

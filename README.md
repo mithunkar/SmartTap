@@ -1,16 +1,19 @@
 # SmartTap
 
-SmartTap is a small Python app for querying Oregon agricultural and weather data in plain English.
+SmartTap is a small Python app for turning plain-English requests about Oregon agricultural and weather data into charts, summaries, and inspectable evidence.
 
 It keeps one primary product surface, the Streamlit UI, backed by one shared pipeline:
 
 `parse -> validate -> fetch -> summarize -> visualize`
+
+Its main job is to help a user investigate a question by returning useful visuals plus the underlying rows and metadata. For complex agronomic prompts, the Spring MVP is not trying to produce an authoritative final answer on its own. It is trying to give the user enough evidence to answer the question themselves.
 
 ## What It Supports
 
 - Time series visualizations
 - Statistical summaries
 - Crop summaries by city or county
+- Inspectable plotted rows and figure metadata
 - Two data sources:
   - OpenET field and crop data from local GeoPackages
   - AgriMet weather data from local CSVs
@@ -58,6 +61,10 @@ What is the average ETa in Hood River in 2024?
 What crops are grown in Benton County?
 Show precipitation in Pendleton in 2023
 ```
+
+These examples should be read as requests for analytical views. The narrative text is supportive context, but the primary deliverable is the chart, plotted data, and figure metadata that help the user interpret the result.
+
+The UI presents one deterministic explanation card alongside the chart plus a separate details section for metadata and the resolved request. Explanation text is generated from task-aware rules, not as a free-form LLM sidecar.
 
 ## Data Requirements
 

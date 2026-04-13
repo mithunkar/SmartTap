@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -14,15 +15,19 @@ os.environ.setdefault("XDG_CACHE_HOME", str(cache_dir.parent))
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from core.data_fetcher import fetch_data
+from core.contracts import (
+    build_clarification_result,
+    build_error_result,
+    build_preview,
+    build_success_result,
+)
+from core.data_fetcher import fetch_data, supported_agrimet_locations
 from core.location_crop_query import LocationCropQuery
 from core.validation import validate_and_fix_spec, validate_payload
+from core.explanation import build_result_explanation
+from core.variable_registry import variable_label
 from core.visualizer import create_crop_bar_chart, payload_to_df, png_bytes, vega_spec
 from llm.interpretation import get_task_specification
-
-# ── NEW: plain-English chart explanation ──────────────────────────────────────
-from chart_explainer import generate_chart_explanation
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 class SmartTapError(Exception):
@@ -112,47 +117,109 @@ def _build_stat_png(variable: str, stats: Dict[str, float]) -> bytes:
     return buffer.getvalue()
 
 
-def _result_success(
-    *,
-    spec: Dict[str, Any],
-    summary: Dict[str, Any],
-    data_preview: pd.DataFrame,
-    chart_bytes: bytes,
-    vega: Dict[str, Any],
-    files: Dict[str, str],
-    explanation: str = "",                  # ← NEW
-    validation_report: Dict[str, Any] | None = None,
-) -> Dict[str, Any]:
-    return {
-        "success": True,
-        "spec": spec,
-        "summary": summary,
-        "data_preview": data_preview,
-        "data": data_preview,
-        "chart_bytes": chart_bytes,
-        "vega_spec": vega,
-        "files": files,
-        "explanation": explanation,         # ← NEW
-        "validation_report": validation_report,
-    }
+def _files_as_strings(paths: Dict[str, Path]) -> Dict[str, str]:
+    return {key: str(value) for key, value in paths.items()}
 
 
-def _result_error(message: str) -> Dict[str, Any]:
-    return {
-        "success": False,
-        "error": message,
-        "spec": None,
-        "summary": {},
-        "data_preview": None,
-        "data": None,
-        "chart_bytes": None,
-        "vega_spec": None,
-        "files": {},
-        "explanation": "",                  # ← NEW (keeps key consistent)
-    }
+def _resolved_request_text(spec: Dict[str, Any]) -> str:
+    parts = []
+    variables = spec.get("variables") or []
+    if variables:
+        labels = ", ".join(variable_label(variable) for variable in variables)
+        parts.append(f"variables={labels}")
+    if spec.get("location"):
+        parts.append(f"location={spec['location']}")
+    if spec.get("start_date") and spec.get("end_date"):
+        parts.append(f"date_range={spec['start_date']} to {spec['end_date']}")
+    if spec.get("year"):
+        parts.append(f"year={spec['year']}")
+    return ", ".join(parts)
+
+
+def _build_clarification_prompt(spec: Dict[str, Any], fields: list[str]) -> str:
+    details = _resolved_request_text(spec)
+    field_names = ", ".join(fields)
+    prefix = "I need a bit more detail before I can build the result."
+    if details:
+        prefix += f" Current request: {details}."
+
+    field_messages = []
+    if "variable" in fields:
+        field_messages.append("the variable you want to inspect")
+    if "location" in fields:
+        field_messages.append("the location")
+    if "time_range" in fields:
+        field_messages.append("the time range")
+    if "station" in fields:
+        supported = ", ".join(supported_agrimet_locations())
+        field_messages.append(
+            f"a supported AgriMet location or station choice; the local AgriMet dataset only supports: {supported}"
+        )
+
+    if field_messages:
+        prefix += f" Please provide {', '.join(field_messages)}."
+    else:
+        prefix += f" Missing fields: {field_names}."
+
+    return prefix
+
+
+def _extract_location_from_followup(text: str) -> str | None:
+    lowered = " ".join((text or "").strip().lower().replace("_", " ").split())
+    if not lowered:
+        return None
+
+    for location in supported_agrimet_locations():
+        if location in lowered:
+            return location.title()
+
+    if " county" in lowered:
+        county_name = lowered.split(" county")[0].strip()
+        if county_name:
+            return f"{county_name.title()} County"
+
+    if lowered.replace(" ", "").isalpha():
+        return lowered.title()
+    return None
+
+
+def _extract_date_patch(text: str) -> Dict[str, str]:
+    years = sorted({int(value) for value in re.findall(r"\b(19\d{2}|20\d{2})\b", text or "")})
+    if not years:
+        return {}
+    if len(years) == 1:
+        year = years[0]
+        return {"start_date": f"{year}-01-01", "end_date": f"{year}-12-31"}
+    return {"start_date": f"{years[0]}-01-01", "end_date": f"{years[-1]}-12-31"}
+
+
+def _merge_followup_into_pending(followup_query: str, pending_spec: Dict[str, Any]) -> Dict[str, Any]:
+    merged = dict(pending_spec)
+    clarified = set(merged.get("confirmed_fields") or [])
+    missing = list(merged.get("clarification_needed") or [])
+
+    location = _extract_location_from_followup(followup_query)
+    if location and any(field in missing for field in ["location", "station"]):
+        merged["location"] = location
+        clarified.add("location")
+        missing = [field for field in missing if field not in {"location", "station"}]
+
+    date_patch = _extract_date_patch(followup_query)
+    if date_patch and "time_range" in missing:
+        merged.update(date_patch)
+        clarified.add("time_range")
+        missing = [field for field in missing if field != "time_range"]
+
+    merged["confirmed_fields"] = sorted(clarified)
+    if missing:
+        merged["clarification_needed"] = missing
+    else:
+        merged.pop("clarification_needed", None)
+    return merged
 
 
 def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
+    del query
     payload = fetch_data(spec)
     report = validate_payload(payload)
     _save_json(paths["validation"], report)
@@ -165,43 +232,39 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
     _save_json(paths["vega"], vega)
 
     final_spec, df, variables = payload_to_df(payload)
-    preview = df.reset_index()
-    if len(preview) > 20:
-        preview = pd.concat([preview.head(10), preview.tail(10)], ignore_index=True)
+    preview = build_preview(df)
 
     summary = {
         "task": final_spec["task"],
         "dataset": final_spec["dataset"],
         "location": final_spec.get("location"),
         "variables": ", ".join(variables),
+        "variables_list": variables,
         "row_count": len(df),
         "date_range": f"{final_spec.get('start_date')} to {final_spec.get('end_date')}",
     }
 
-    # ── Generate plain-English explanation ───────────────────────────────────
-    explanation = generate_chart_explanation(
+    explanation = build_result_explanation(
         spec=final_spec,
         df=df,
-        variables=variables,
-        task="visualize_timeseries",
+        summary=summary,
         vega_spec=vega,
-
     )
-    # ─────────────────────────────────────────────────────────────────────────
 
-    return _result_success(
+    return build_success_result(
         spec=final_spec,
         summary=summary,
+        explanation=explanation,
         data_preview=preview,
         chart_bytes=png,
-        vega=vega,
-        files={key: str(value) for key, value in paths.items()},
-        explanation=explanation,
+        vega_spec=vega,
+        files=_files_as_strings(paths),
         validation_report=report,
     )
 
 
 def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
+    del query
     stat_spec = dict(spec)
     if stat_spec.get("dataset") == "openet":
         stat_spec["openet_geo"] = stat_spec.get("openet_geo") or "location"
@@ -235,7 +298,7 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
     _save_bytes(paths["png"], png)
     _save_json(paths["vega"], vega)
 
-    preview = df.reset_index().head(20)
+    preview = build_preview(df)
     summary = {
         "task": final_spec["task"],
         "dataset": final_spec["dataset"],
@@ -244,24 +307,21 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
         **stats,
     }
 
-    # ── Generate plain-English explanation ───────────────────────────────────
-    explanation = generate_chart_explanation(
+    explanation = build_result_explanation(
         spec=final_spec,
         df=df,
-        variables=[variable],
-        task="statistical_summary",
+        summary=summary,
         vega_spec=vega,
     )
-    # ─────────────────────────────────────────────────────────────────────────
 
-    return _result_success(
+    return build_success_result(
         spec=final_spec,
         summary=summary,
+        explanation=explanation,
         data_preview=preview,
         chart_bytes=png,
-        vega=vega,
-        files={key: str(value) for key, value in paths.items()},
-        explanation=explanation,
+        vega_spec=vega,
+        files=_files_as_strings(paths),
         validation_report=report,
     )
 
@@ -304,24 +364,21 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
         "total_crops": int(len(crop_summary)),
     }
 
-    # ── Generate plain-English explanation ───────────────────────────────────
-    crop_rows = crop_summary.head(15).to_dict(orient="records")
-    explanation = generate_chart_explanation(
+    explanation = build_result_explanation(
         spec=spec,
-        crop_rows=crop_rows,
-        task="summarize_crops",
+        df=crop_summary,
+        summary=summary,
         vega_spec=vega,
     )
-    # ─────────────────────────────────────────────────────────────────────────
 
-    return _result_success(
+    return build_success_result(
         spec=spec,
         summary=summary,
+        explanation=explanation,
         data_preview=crop_summary.head(20).reset_index(drop=True),
         chart_bytes=png,
-        vega=vega,
-        files={key: str(value) for key, value in paths.items()},
-        explanation=explanation,
+        vega_spec=vega,
+        files=_files_as_strings(paths),
     )
 
 
@@ -331,7 +388,15 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
         fixed_spec = validate_and_fix_spec(raw_spec, query)
 
         if fixed_spec.get("task") == "error":
-            return _result_error(fixed_spec.get("error_message", "Invalid query."))
+            return build_error_result(fixed_spec.get("error_message", "Invalid query."))
+
+        clarification_fields = list(fixed_spec.get("clarification_needed") or [])
+        if clarification_fields:
+            return build_clarification_result(
+                spec=fixed_spec,
+                prompt=_build_clarification_prompt(fixed_spec, clarification_fields),
+                fields=clarification_fields,
+            )
 
         task = fixed_spec["task"]
         paths = _output_paths(_base_name())
@@ -343,8 +408,29 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
         if task == "summarize_crops":
             return _run_crop_summary(fixed_spec, paths)
 
-        return _result_error(f"Unsupported task: {task}")
+        return build_error_result(f"Unsupported task: {task}")
     except SmartTapError as exc:
-        return _result_error(str(exc))
+        return build_error_result(str(exc))
     except Exception as exc:
-        return _result_error(str(exc))
+        return build_error_result(str(exc))
+
+
+def process_clarification_reply(
+    *,
+    followup_query: str,
+    pending_spec: Dict[str, Any],
+    original_query: str,
+) -> Dict[str, Any]:
+    merged = _merge_followup_into_pending(followup_query, pending_spec)
+    combined_query = f"{original_query} {followup_query}".strip()
+    fixed_spec = validate_and_fix_spec(merged, combined_query)
+
+    clarification_fields = list(fixed_spec.get("clarification_needed") or [])
+    if clarification_fields:
+        return build_clarification_result(
+            spec=fixed_spec,
+            prompt=_build_clarification_prompt(fixed_spec, clarification_fields),
+            fields=clarification_fields,
+        )
+
+    return process_query(original_query, spec=fixed_spec)

@@ -50,6 +50,7 @@ class VisualizationResult(TypedDict):
     error: str | None
     spec: QuerySpec | None
     summary: Dict[str, Any]
+    explanation: str
     data_preview: pd.DataFrame | None
     data: pd.DataFrame | None
     chart_bytes: bytes | None
@@ -100,6 +101,7 @@ def build_success_result(
     *,
     spec: QuerySpec,
     summary: Dict[str, Any],
+    explanation: str,
     data_preview: pd.DataFrame,
     chart_bytes: bytes,
     vega_spec: Dict[str, Any],
@@ -112,6 +114,7 @@ def build_success_result(
         "error": None,
         "spec": spec,
         "summary": summary,
+        "explanation": explanation,
         "data_preview": data_preview,
         "data": data_preview,
         "chart_bytes": chart_bytes,
@@ -130,6 +133,7 @@ def build_error_result(message: str) -> VisualizationResult:
         "error": message,
         "spec": None,
         "summary": {},
+        "explanation": "",
         "data_preview": None,
         "data": None,
         "chart_bytes": None,
@@ -153,6 +157,7 @@ def build_clarification_result(
         "error": None,
         "spec": spec,
         "summary": {"status": "clarification_needed"},
+        "explanation": "",
         "data_preview": None,
         "data": None,
         "chart_bytes": None,
