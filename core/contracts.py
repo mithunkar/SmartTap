@@ -9,6 +9,16 @@ import pandas as pd
 TaskName = Literal["visualize_timeseries", "statistical_summary", "summarize_crops"]
 DatasetName = Literal["agrimet", "openet"]
 LocationType = Literal["city", "county", "station"]
+EvidencePattern = Literal[
+    "trend_single",
+    "ranking_categories",
+    "distribution_categories",
+    "comparison_multivariate",
+    "comparison_grouped",
+    "relationship_split",
+    "cross_dataset_comparison",
+    "stat_snapshot",
+]
 
 
 class QuerySpec(TypedDict, total=False):
@@ -28,6 +38,13 @@ class QuerySpec(TypedDict, total=False):
     aggregation: str
     statistics: List[str]
     crop_filter: str
+    evidence_pattern: EvidencePattern
+    group_by: List[str]
+    compare_by: str
+    split_by: str
+    secondary_variables: List[str]
+    source_datasets: List[str]
+    chart_package: str | List[str]
     openet_geo: str
     openet_id: str
     huc8_code: str
@@ -40,6 +57,14 @@ class VisualizationFiles(TypedDict, total=False):
     png: str
     vega: str
     validation: str
+
+
+class SecondaryView(TypedDict, total=False):
+    caption: str
+    chart_bytes: bytes
+    vega_spec: Dict[str, Any]
+    data_preview: pd.DataFrame | None
+    files: VisualizationFiles
 
 
 class VisualizationResult(TypedDict):
@@ -55,6 +80,7 @@ class VisualizationResult(TypedDict):
     data: pd.DataFrame | None
     chart_bytes: bytes | None
     vega_spec: Dict[str, Any] | None
+    secondary_views: List[SecondaryView]
     files: VisualizationFiles
     validation_report: Dict[str, Any] | None
     clarification_prompt: str | None
@@ -106,6 +132,7 @@ def build_success_result(
     chart_bytes: bytes,
     vega_spec: Dict[str, Any],
     files: VisualizationFiles,
+    secondary_views: List[SecondaryView] | None = None,
     validation_report: Dict[str, Any] | None = None,
 ) -> VisualizationResult:
     return {
@@ -119,6 +146,7 @@ def build_success_result(
         "data": data_preview,
         "chart_bytes": chart_bytes,
         "vega_spec": vega_spec,
+        "secondary_views": secondary_views or [],
         "files": files,
         "validation_report": validation_report,
         "clarification_prompt": None,
@@ -138,6 +166,7 @@ def build_error_result(message: str) -> VisualizationResult:
         "data": None,
         "chart_bytes": None,
         "vega_spec": None,
+        "secondary_views": [],
         "files": {},
         "validation_report": None,
         "clarification_prompt": None,
@@ -162,6 +191,7 @@ def build_clarification_result(
         "data": None,
         "chart_bytes": None,
         "vega_spec": None,
+        "secondary_views": [],
         "files": {},
         "validation_report": None,
         "clarification_prompt": prompt,

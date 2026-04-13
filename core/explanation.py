@@ -17,6 +17,13 @@ def _format_location(spec: Dict[str, Any]) -> str:
     return str(location)
 
 
+def _format_scope_prefix(spec: Dict[str, Any]) -> str:
+    crop_filter = spec.get("crop_filter")
+    if not crop_filter:
+        return ""
+    return f" for {crop_filter}"
+
+
 def _format_date_range(spec: Dict[str, Any]) -> str:
     start_date = spec.get("start_date")
     end_date = spec.get("end_date")
@@ -93,12 +100,13 @@ def _build_timeseries_explanation(
     variables = list(spec.get("variables") or summary.get("variables_list") or [])
     label_text = _join_labels(variables)
     location = _format_location(spec)
+    scope_prefix = _format_scope_prefix(spec)
     date_range = _format_date_range(spec)
     x_title, y_title = _extract_axis_titles(vega_spec)
     row_count = summary.get("row_count") or (len(df) if df is not None else 0)
 
     sentences = [
-        f"This chart shows {label_text} for {location}{(' ' + date_range) if date_range else ''}.",
+        f"This chart shows {label_text}{scope_prefix} in {location}{(' ' + date_range) if date_range else ''}.",
         f"The x-axis shows {x_title.lower()}, and the y-axis shows {y_title.lower()}.",
         f"It includes {row_count} plotted records that you can inspect in the data preview.",
     ]
@@ -123,6 +131,66 @@ def _build_timeseries_explanation(
     return " ".join(sentences)
 
 
+def _build_comparison_explanation(
+    spec: Dict[str, Any],
+    df: pd.DataFrame | None,
+    summary: Dict[str, Any],
+    vega_spec: Dict[str, Any] | None,
+) -> str:
+    variables = list(spec.get("variables") or summary.get("variables_list") or [])
+    label_text = _join_labels(variables)
+    location = _format_location(spec)
+    scope_prefix = _format_scope_prefix(spec)
+    date_range = _format_date_range(spec)
+    secondary_count = int(summary.get("secondary_view_count") or 0)
+    x_title, y_title = _extract_axis_titles(vega_spec)
+
+    sentences = [
+        f"This evidence package compares {label_text}{scope_prefix} in {location}{(' ' + date_range) if date_range else ''}.",
+        f"The primary chart uses {x_title.lower()} on the x-axis and {y_title.lower()} on the y-axis so you can compare how the selected variables move together.",
+    ]
+    if secondary_count:
+        sentences.append(f"It also includes {secondary_count} companion chart{'s' if secondary_count != 1 else ''} to support the comparison.")
+    return " ".join(sentences)
+
+
+def _build_cross_dataset_explanation(
+    spec: Dict[str, Any],
+    df: pd.DataFrame | None,
+    summary: Dict[str, Any],
+    vega_spec: Dict[str, Any] | None,
+) -> str:
+    del df, vega_spec
+    datasets = ", ".join(spec.get("source_datasets") or [])
+    variables = _join_labels(list(spec.get("variables") or summary.get("variables_list") or []))
+    location = _format_location(spec)
+    scope_prefix = _format_scope_prefix(spec)
+    date_range = _format_date_range(spec)
+    secondary_count = int(summary.get("secondary_view_count") or 0)
+    return (
+        f"This evidence package compares {variables}{scope_prefix} in {location}{(' ' + date_range) if date_range else ''} across {datasets}. "
+        f"Each chart keeps its own source context and units so you can compare patterns without treating the datasets as identical. "
+        f"The package includes {secondary_count + 1} coordinated chart{'s' if secondary_count else ''} plus inspectable rows and metadata."
+    )
+
+
+def _build_grouped_explanation(
+    spec: Dict[str, Any],
+    df: pd.DataFrame | None,
+    summary: Dict[str, Any],
+    vega_spec: Dict[str, Any] | None,
+) -> str:
+    del df, vega_spec
+    split_by = spec.get("split_by") or spec.get("compare_by") or "the selected grouping"
+    variables = _join_labels(list(spec.get("variables") or summary.get("variables_list") or []))
+    location = _format_location(spec)
+    scope_prefix = _format_scope_prefix(spec)
+    return (
+        f"This chart package helps compare {variables}{scope_prefix} in {location} by {variable_label(str(split_by)) if split_by else 'group'}. "
+        "Use the grouped view and companion details to see how the selected measure differs across categories."
+    )
+
+
 def _build_statistical_explanation(
     spec: Dict[str, Any],
     df: pd.DataFrame | None,
@@ -133,6 +201,7 @@ def _build_statistical_explanation(
     variable = str(summary.get("variable") or (spec.get("variables") or ["the selected variable"])[0])
     label = variable_label(variable)
     location = _format_location(spec)
+    scope_prefix = _format_scope_prefix(spec)
     count = summary.get("count", 0)
     mean = summary.get("mean")
     median = summary.get("median")
@@ -140,7 +209,7 @@ def _build_statistical_explanation(
     maximum = summary.get("max")
 
     return (
-        f"This result summarizes {label} for {location}. "
+        f"This result summarizes {label}{scope_prefix} in {location}. "
         f"The chart compares the mean, median, minimum, and maximum across {count} records. "
         f"The average was {mean}, the median was {median}, the minimum was {minimum}, and the maximum was {maximum}."
     )
@@ -176,6 +245,14 @@ EXPLANATION_BUILDERS: Dict[str, ExplanationBuilder] = {
     "visualize_timeseries": _build_timeseries_explanation,
     "statistical_summary": _build_statistical_explanation,
     "summarize_crops": _build_crop_summary_explanation,
+    "trend_single": _build_timeseries_explanation,
+    "ranking_categories": _build_crop_summary_explanation,
+    "distribution_categories": _build_crop_summary_explanation,
+    "comparison_multivariate": _build_comparison_explanation,
+    "comparison_grouped": _build_grouped_explanation,
+    "relationship_split": _build_grouped_explanation,
+    "cross_dataset_comparison": _build_cross_dataset_explanation,
+    "stat_snapshot": _build_statistical_explanation,
 }
 
 
@@ -186,8 +263,11 @@ def build_result_explanation(
     summary: Dict[str, Any],
     vega_spec: Dict[str, Any] | None = None,
 ) -> str:
-    task = str(spec.get("task") or summary.get("task") or "").strip()
-    builder = EXPLANATION_BUILDERS.get(task)
+    evidence_pattern = str(spec.get("evidence_pattern") or summary.get("evidence_pattern") or "").strip()
+    builder = EXPLANATION_BUILDERS.get(evidence_pattern)
+    if builder is None:
+        task = str(spec.get("task") or summary.get("task") or "").strip()
+        builder = EXPLANATION_BUILDERS.get(task)
     if builder is None:
         return ""
     return builder(spec, df, summary, vega_spec).strip()

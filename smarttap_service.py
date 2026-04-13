@@ -25,8 +25,8 @@ from core.data_fetcher import fetch_data, supported_agrimet_locations
 from core.location_crop_query import LocationCropQuery
 from core.validation import validate_and_fix_spec, validate_payload
 from core.explanation import build_result_explanation
-from core.variable_registry import variable_label
-from core.visualizer import create_crop_bar_chart, payload_to_df, png_bytes, vega_spec
+from core.variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, variable_label
+from core.visualizer import create_crop_bar_chart, create_crop_pie_chart, payload_to_df, png_bytes, vega_spec
 from llm.interpretation import get_task_specification
 
 
@@ -59,6 +59,13 @@ def _save_json(path: Path, payload: Dict[str, Any]) -> None:
 def _save_bytes(path: Path, payload: bytes) -> None:
     with open(path, "wb") as handle:
         handle.write(payload)
+
+
+def _paths_with_suffix(paths: Dict[str, Path], suffix: str) -> Dict[str, Path]:
+    return {
+        key: value.with_name(f"{value.stem}_{suffix}{value.suffix}")
+        for key, value in paths.items()
+    }
 
 
 def _init_location_query() -> LocationCropQuery:
@@ -117,8 +124,74 @@ def _build_stat_png(variable: str, stats: Dict[str, float]) -> bytes:
     return buffer.getvalue()
 
 
+def _build_variable_mean_chart(df: pd.DataFrame, variables: list[str], title: str) -> tuple[bytes, Dict[str, Any]]:
+    rows = []
+    for variable in variables:
+        if variable not in df.columns:
+            continue
+        series = df[variable].dropna()
+        if series.empty:
+            continue
+        rows.append({"variable": variable_label(variable), "value": round(float(series.mean()), 3)})
+
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": title,
+        "data": {"values": rows},
+        "mark": "bar",
+        "encoding": {
+            "x": {"field": "variable", "type": "nominal", "title": "Variable"},
+            "y": {"field": "value", "type": "quantitative", "title": "Average value"},
+            "tooltip": [
+                {"field": "variable", "type": "nominal"},
+                {"field": "value", "type": "quantitative"},
+            ],
+        },
+    }
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    labels = [row["variable"] for row in rows]
+    values = [row["value"] for row in rows]
+    ax.bar(labels, values, color="#4c78a8")
+    ax.set_title(title)
+    ax.set_ylabel("Average value")
+    ax.grid(axis="y", alpha=0.25)
+    fig.tight_layout()
+
+    from io import BytesIO
+
+    buffer = BytesIO()
+    fig.savefig(buffer, format="png", dpi=160)
+    plt.close(fig)
+    return buffer.getvalue(), vega
+
+
+def _build_secondary_view(
+    *,
+    caption: str,
+    chart_bytes: bytes,
+    vega: Dict[str, Any],
+    data_preview: pd.DataFrame | None,
+    paths: Dict[str, Path],
+) -> Dict[str, Any]:
+    _save_bytes(paths["png"], chart_bytes)
+    _save_json(paths["vega"], vega)
+    return {
+        "caption": caption,
+        "chart_bytes": chart_bytes,
+        "vega_spec": vega,
+        "data_preview": data_preview,
+        "files": _files_as_strings(paths),
+    }
+
+
 def _files_as_strings(paths: Dict[str, Path]) -> Dict[str, str]:
     return {key: str(value) for key, value in paths.items()}
+
+
+def _set_optional(summary: Dict[str, Any], key: str, value: Any) -> None:
+    if value not in (None, "", [], {}):
+        summary[key] = value
 
 
 def _resolved_request_text(spec: Dict[str, Any]) -> str:
@@ -233,6 +306,7 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
 
     final_spec, df, variables = payload_to_df(payload)
     preview = build_preview(df)
+    secondary_views = []
 
     summary = {
         "task": final_spec["task"],
@@ -242,7 +316,28 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
         "variables_list": variables,
         "row_count": len(df),
         "date_range": f"{final_spec.get('start_date')} to {final_spec.get('end_date')}",
+        "evidence_pattern": final_spec.get("evidence_pattern"),
+        "chart_package": final_spec.get("chart_package"),
+        "source_datasets": ", ".join(final_spec.get("source_datasets") or []),
     }
+    _set_optional(summary, "crop_filter", final_spec.get("crop_filter"))
+
+    if final_spec.get("evidence_pattern") == "comparison_multivariate" and len(variables) > 1:
+        secondary_paths = _paths_with_suffix(paths, "comparison_summary")
+        companion_png, companion_vega = _build_variable_mean_chart(
+            df,
+            variables,
+            "Average values for selected variables",
+        )
+        secondary_views.append(
+            _build_secondary_view(
+                caption="This companion chart compares the average value of each selected variable.",
+                chart_bytes=companion_png,
+                vega=companion_vega,
+                data_preview=build_preview(df[variables]),
+                paths=secondary_paths,
+            )
+        )
 
     explanation = build_result_explanation(
         spec=final_spec,
@@ -259,6 +354,7 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
         chart_bytes=png,
         vega_spec=vega,
         files=_files_as_strings(paths),
+        secondary_views=secondary_views,
         validation_report=report,
     )
 
@@ -304,8 +400,11 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
         "dataset": final_spec["dataset"],
         "location": final_spec.get("location"),
         "variable": variable,
+        "evidence_pattern": final_spec.get("evidence_pattern"),
+        "chart_package": final_spec.get("chart_package"),
         **stats,
     }
+    _set_optional(summary, "crop_filter", final_spec.get("crop_filter"))
 
     explanation = build_result_explanation(
         spec=final_spec,
@@ -322,6 +421,7 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
         chart_bytes=png,
         vega_spec=vega,
         files=_files_as_strings(paths),
+        secondary_views=[],
         validation_report=report,
     )
 
@@ -354,15 +454,33 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
     png, vega = create_crop_bar_chart(crop_summary, location, year, top_n=15)
     _save_bytes(paths["png"], png)
     _save_json(paths["vega"], vega)
+    secondary_views = []
+
+    if spec.get("evidence_pattern") in {"ranking_categories", "distribution_categories"}:
+        secondary_paths = _paths_with_suffix(paths, "distribution")
+        pie_png, pie_vega = create_crop_pie_chart(crop_summary, location, year, top_n=10)
+        secondary_views.append(
+            _build_secondary_view(
+                caption="This companion chart shows the crop-group mix for the same location and year.",
+                chart_bytes=pie_png,
+                vega=pie_vega,
+                data_preview=crop_summary.groupby("Group", as_index=False)["Field Count"].sum(),
+                paths=secondary_paths,
+            )
+        )
 
     summary = {
         "task": spec["task"],
+        "dataset": "openet",
         "location": location,
         "location_type": location_type,
         "year": year,
         "total_fields": int(len(df)),
         "total_crops": int(len(crop_summary)),
+        "evidence_pattern": spec.get("evidence_pattern"),
+        "chart_package": spec.get("chart_package"),
     }
+    _set_optional(summary, "crop_filter", spec.get("crop_filter"))
 
     explanation = build_result_explanation(
         spec=spec,
@@ -379,6 +497,100 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
         chart_bytes=png,
         vega_spec=vega,
         files=_files_as_strings(paths),
+        secondary_views=secondary_views,
+    )
+
+
+def _run_cross_dataset_comparison(query: str, spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
+    del query
+    source_datasets = list(spec.get("source_datasets") or [])
+    variables = list(spec.get("variables") or [])
+    dataset_payloads = []
+    combined_previews = []
+
+    for index, dataset in enumerate(source_datasets):
+        dataset_variables = [
+            variable
+            for variable in variables
+            if (dataset == "openet" and variable in OPENET_VARIABLES)
+            or (dataset == "agrimet" and variable in AGRIMET_VARIABLES)
+        ]
+        if not dataset_variables:
+            continue
+
+        dataset_spec = dict(spec)
+        dataset_spec["dataset"] = dataset
+        dataset_spec["source_datasets"] = [dataset]
+        dataset_spec["variables"] = dataset_variables
+        dataset_spec["evidence_pattern"] = "trend_single" if len(dataset_variables) == 1 else "comparison_multivariate"
+
+        dataset_paths = paths if index == 0 else _paths_with_suffix(paths, dataset)
+        payload = fetch_data(dataset_spec)
+        report = validate_payload(payload)
+        _save_json(dataset_paths["validation"], report)
+        if not report["ok"]:
+            raise SmartTapError("; ".join(report["errors"]))
+
+        chart_png = png_bytes(payload)
+        chart_vega = vega_spec(payload)
+        _save_bytes(dataset_paths["png"], chart_png)
+        _save_json(dataset_paths["vega"], chart_vega)
+
+        final_spec, df, final_variables = payload_to_df(payload)
+        preview = build_preview(df)
+        combined_preview = preview.copy()
+        combined_preview["source_dataset"] = dataset
+        combined_previews.append(combined_preview)
+        dataset_payloads.append((dataset, final_spec, df, final_variables, chart_png, chart_vega, preview, dataset_paths))
+
+    if not dataset_payloads:
+        raise SmartTapError("No supported dataset views were available for this evidence package.")
+
+    primary_dataset, primary_spec, primary_df, primary_variables, primary_png, primary_vega, primary_preview, primary_paths = dataset_payloads[0]
+    secondary_views = []
+    for dataset, final_spec, df, final_variables, chart_png, chart_vega, preview, dataset_paths in dataset_payloads[1:]:
+        secondary_views.append(
+            _build_secondary_view(
+                caption=f"This companion chart shows {', '.join(variable_label(value) for value in final_variables)} from {dataset}.",
+                chart_bytes=chart_png,
+                vega=chart_vega,
+                data_preview=preview,
+                paths=dataset_paths,
+            )
+        )
+
+    summary = {
+        "task": spec["task"],
+        "dataset": primary_dataset,
+        "location": spec.get("location"),
+        "variables": ", ".join(variables),
+        "variables_list": variables,
+        "row_count": sum(len(df) for _, _, df, _, _, _, _, _ in dataset_payloads),
+        "date_range": f"{spec.get('start_date')} to {spec.get('end_date')}",
+        "evidence_pattern": spec.get("evidence_pattern"),
+        "chart_package": spec.get("chart_package"),
+        "source_datasets": ", ".join(source_datasets),
+        "secondary_view_count": len(secondary_views),
+    }
+    _set_optional(summary, "crop_filter", spec.get("crop_filter"))
+
+    explanation = build_result_explanation(
+        spec=spec,
+        df=primary_df,
+        summary=summary,
+        vega_spec=primary_vega,
+    )
+
+    combined_preview = pd.concat(combined_previews, ignore_index=True) if combined_previews else primary_preview
+    return build_success_result(
+        spec=spec,
+        summary=summary,
+        explanation=explanation,
+        data_preview=combined_preview,
+        chart_bytes=primary_png,
+        vega_spec=primary_vega,
+        files=_files_as_strings(primary_paths),
+        secondary_views=secondary_views,
     )
 
 
@@ -400,6 +612,9 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
 
         task = fixed_spec["task"]
         paths = _output_paths(_base_name())
+
+        if fixed_spec.get("evidence_pattern") == "cross_dataset_comparison":
+            return _run_cross_dataset_comparison(query, fixed_spec, paths)
 
         if task == "visualize_timeseries":
             return _run_visualization_task(query, fixed_spec, paths)

@@ -6,6 +6,7 @@ Unit tests for data_fetcher module
 import unittest
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -140,6 +141,37 @@ class TestDataFetcher(unittest.TestCase):
         
         # Should have 3 days of data
         self.assertEqual(len(records), 3, f"Expected 3 records, got {len(records)}")
+
+    def test_openet_crop_filter_empty_result_has_specific_error_message(self):
+        """Crop-filtered empty results should mention the crop instead of implying the whole location has no data."""
+
+        class FakeLocationCropQuery:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def query_variable_by_city(self, **kwargs):
+                return __import__("pandas").DataFrame()
+
+        spec = {
+            "dataset": "openet",
+            "openet_geo": "location",
+            "location": "Corvallis",
+            "location_type": "city",
+            "crop_filter": "Cucumber",
+            "variables": ["ETa"],
+            "start_date": "2016-01-01",
+            "end_date": "2024-12-31",
+            "interval": "monthly",
+        }
+
+        with patch("core.data_fetcher.LocationCropQuery", FakeLocationCropQuery):
+            with self.assertRaises(ValueError) as exc:
+                fetch_openet_data(spec)
+
+        self.assertEqual(
+            str(exc.exception),
+            "No OpenET data found for Cucumber fields near Corvallis for 2016-01-01 to 2024-12-31.",
+        )
 
 
 if __name__ == "__main__":

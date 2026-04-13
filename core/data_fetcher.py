@@ -122,6 +122,25 @@ def _pivot_long_to_wide(df: pd.DataFrame, time_col: str, var_col: str, value_col
     )
 
 
+def _openet_no_data_message(
+    *,
+    location: str,
+    location_type: str,
+    crop_filter: str | None,
+    start_date: str | None,
+    end_date: str | None,
+) -> str:
+    place = f"near {location}" if location_type == "city" else f"in {location}"
+    if start_date and end_date:
+        time_part = f" for {start_date} to {end_date}"
+    else:
+        time_part = ""
+
+    if crop_filter:
+        return f"No OpenET data found for {crop_filter} fields {place}{time_part}."
+    return f"No OpenET data found for '{location}'."
+
+
 def get_data_files_for_range(location: str, start_date: str, end_date: str) -> List[Path]:
     prefix = _agrimet_file_prefix(location)
     start_year = int((start_date or "2015-01-01").split("-")[0])
@@ -246,7 +265,15 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
                 results[variable] = frame[["datetime", variable]].copy()
 
         if not results:
-            raise ValueError(f"No OpenET data found for '{location}'.")
+            raise ValueError(
+                _openet_no_data_message(
+                    location=str(location),
+                    location_type=location_type,
+                    crop_filter=str(crop_filter) if crop_filter else None,
+                    start_date=str(start_date) if start_date else None,
+                    end_date=str(end_date) if end_date else None,
+                )
+            )
 
         names = list(results)
         wide = results[names[0]]

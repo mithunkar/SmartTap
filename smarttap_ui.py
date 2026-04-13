@@ -21,6 +21,7 @@ def _init_state() -> None:
         "current_vega_spec": None,
         "current_files": None,
         "current_explanation": None,
+        "current_secondary_views": None,
         "pending_spec": None,
         "original_query": None,
     }
@@ -83,9 +84,11 @@ def _render_sidebar() -> None:
         st.subheader("Supported Tasks")
         st.markdown(
             """
-            - Time series charts
-            - Statistical summaries
-            - Crop summaries by city or county
+            - Evidence-oriented time series charts
+            - Statistical snapshots
+            - Crop ranking and distribution summaries
+            - Multi-variable comparisons
+            - Coordinated cross-dataset evidence packages
             """
         )
 
@@ -108,6 +111,7 @@ def _render_sidebar() -> None:
                 "current_vega_spec",
                 "current_files",
                 "current_explanation",
+                "current_secondary_views",
                 "pending_spec",
                 "original_query",
             ]:
@@ -145,6 +149,7 @@ def _run_query(query: str) -> None:
         st.session_state.current_vega_spec   = result.get("vega_spec")
         st.session_state.current_files       = result.get("files")
         st.session_state.current_explanation = result.get("explanation", "")
+        st.session_state.current_secondary_views = result.get("secondary_views", [])
         st.session_state.pending_spec        = None
         st.session_state.original_query      = None
     elif result.get("needs_clarification"):
@@ -213,6 +218,13 @@ def _render_result_details() -> None:
                 "chart_type",
                 "aggregation",
                 "crop_filter",
+                "evidence_pattern",
+                "group_by",
+                "compare_by",
+                "split_by",
+                "secondary_variables",
+                "source_datasets",
+                "chart_package",
             ]
             for key in display_keys:
                 value = spec.get(key)
@@ -238,6 +250,23 @@ def _render_results() -> None:
         )
     else:
         st.info("Run a query to see a visualization.")
+
+    secondary_views = st.session_state.current_secondary_views or []
+    if secondary_views:
+        st.subheader("Companion Views")
+        for index, view in enumerate(secondary_views, start=1):
+            st.markdown(f"**View {index}.** {view.get('caption', 'Companion chart')}")
+            chart_bytes = view.get("chart_bytes")
+            if chart_bytes:
+                image = Image.open(io.BytesIO(chart_bytes))
+                st.image(image, use_container_width=True)
+            preview = view.get("data_preview")
+            if preview is not None:
+                with st.expander(f"Companion Data Preview {index}"):
+                    st.dataframe(preview, use_container_width=True, height=220)
+            if view.get("vega_spec") is not None:
+                with st.expander(f"Companion Vega-Lite Spec {index}"):
+                    st.json(view["vega_spec"])
 
     _render_result_details()
 

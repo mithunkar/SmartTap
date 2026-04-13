@@ -39,6 +39,7 @@ def test_build_success_result_uses_canonical_shape():
     assert result["error"] is None
     assert result["explanation"] == "This chart shows one value."
     assert result["data"] is preview
+    assert result["secondary_views"] == []
     assert result["files"]["png"].endswith(".png")
 
 
@@ -48,6 +49,7 @@ def test_build_error_result_uses_canonical_shape():
     assert result["error"] == "boom"
     assert result["explanation"] == ""
     assert result["spec"] is None
+    assert result["secondary_views"] == []
     assert result["files"] == {}
 
 
@@ -62,6 +64,7 @@ def test_build_clarification_result_uses_canonical_shape():
     assert result["explanation"] == ""
     assert result["clarification_prompt"] == "Need location"
     assert result["clarification_fields"] == ["location"]
+    assert result["secondary_views"] == []
 
 
 def test_validate_and_fix_spec_normalizes_queryspec_shape():
@@ -120,3 +123,114 @@ def test_validate_and_fix_spec_drops_unmentioned_parser_time_range():
     assert "end_date" not in result
     assert "time_range" in result["clarification_needed"]
     assert any("Dropped parser-supplied time range" in note for note in result["notes"])
+
+
+def test_validate_and_fix_spec_routes_ranking_pattern():
+    result = validate_and_fix_spec(
+        {
+            "task": "summarize_crops",
+            "location": "Yamhill County",
+            "location_type": "county",
+            "year": 2023,
+        },
+        "What crops were most commonly grown in Yamhill County between 2016 and 2023?",
+    )
+    assert result["evidence_pattern"] == "ranking_categories"
+
+
+def test_validate_and_fix_spec_routes_multivariable_pattern():
+    result = validate_and_fix_spec(
+        {
+            "task": "visualize_timeseries",
+            "location": "Douglas County",
+            "location_type": "county",
+            "variables": ["AW", "ETa"],
+            "start_date": "2018-01-01",
+            "end_date": "2024-12-31",
+        },
+        "For cabbage farms in Douglas County, did irrigation water keep up with plant water use from 2018 to 2024?",
+    )
+    assert result["evidence_pattern"] == "comparison_multivariate"
+
+
+def test_validate_and_fix_spec_routes_irrigation_split_pattern():
+    result = validate_and_fix_spec(
+        {
+            "task": "visualize_timeseries",
+            "location": "Grant County",
+            "location_type": "county",
+            "variables": ["IRR_STATUS", "ETa"],
+            "start_date": "2017-01-01",
+            "end_date": "2022-12-31",
+        },
+        "For lentil farms in Grant County, how did irrigation presence and plant water use relate between 2017 and 2022?",
+    )
+    assert result["evidence_pattern"] == "relationship_split"
+
+
+def test_validate_and_fix_spec_routes_cross_dataset_pattern():
+    result = validate_and_fix_spec(
+        {
+            "task": "visualize_timeseries",
+            "location": "Corvallis",
+            "variables": ["ETa", "PEN_ET", "PPT"],
+            "start_date": "2015-01-01",
+            "end_date": "2023-12-31",
+        },
+        "For hazelnut orchards in Corvallis, how did rainfall, crop water use, and water demand vary from 2015 to 2023?",
+    )
+    assert result["evidence_pattern"] == "cross_dataset_comparison"
+    assert result["source_datasets"] == ["openet", "agrimet"]
+
+
+def test_validate_and_fix_spec_routes_single_variable_trend_pattern():
+    result = validate_and_fix_spec(
+        {
+            "task": "visualize_timeseries",
+            "location": "Morrow County",
+            "location_type": "county",
+            "variables": ["ACRES_FTR_GEOM"],
+            "start_date": "2014-01-01",
+            "end_date": "2022-12-31",
+        },
+        "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+    )
+    assert result["evidence_pattern"] == "trend_single"
+
+
+def test_validate_and_fix_spec_infers_crop_filter_from_query():
+    result = validate_and_fix_spec(
+        {
+            "task": "visualize_timeseries",
+            "dataset": "openet",
+            "location": "Corvallis",
+            "location_type": "city",
+            "variables": ["NIWR", "AW", "ETa"],
+            "start_date": "2016-01-01",
+            "end_date": "2024-12-31",
+            "interval": "monthly",
+            "chart_type": "line",
+            "openet_geo": "location",
+        },
+        "For cucumber farms in Corvallis, how did plant water needs, irrigation demand, and water applied evolve from 2016 to 2024?",
+    )
+    assert result["crop_filter"] == "Cucumber"
+
+
+def test_validate_and_fix_spec_infers_broad_pasture_crop_filter():
+    result = validate_and_fix_spec(
+        {
+            "task": "visualize_timeseries",
+            "dataset": "openet",
+            "location": "Corvallis",
+            "location_type": "city",
+            "variables": ["ETa", "NIWR_VOLUME", "AW"],
+            "start_date": "2016-01-01",
+            "end_date": "2024-12-31",
+            "interval": "monthly",
+            "chart_type": "line",
+            "openet_geo": "location",
+        },
+        "For pastures in Corvallis, how did plant water needs, irrigation demand, and water applied evolve from 2016 to 2024?",
+    )
+    assert result["crop_filter"] == "Pasture"

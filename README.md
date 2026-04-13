@@ -10,9 +10,11 @@ Its main job is to help a user investigate a question by returning useful visual
 
 ## What It Supports
 
-- Time series visualizations
-- Statistical summaries
-- Crop summaries by city or county
+- Single-variable trend views
+- Statistical snapshots
+- Crop ranking and crop-distribution views by city or county
+- Multi-variable comparison views
+- Coordinated cross-dataset evidence packages when OpenET and AgriMet variables are mixed
 - Inspectable plotted rows and figure metadata
 - Two data sources:
   - OpenET field and crop data from local GeoPackages
@@ -64,7 +66,7 @@ Show precipitation in Pendleton in 2023
 
 These examples should be read as requests for analytical views. The narrative text is supportive context, but the primary deliverable is the chart, plotted data, and figure metadata that help the user interpret the result.
 
-The UI presents one deterministic explanation card alongside the chart plus a separate details section for metadata and the resolved request. Explanation text is generated from task-aware rules, not as a free-form LLM sidecar.
+The UI presents one deterministic explanation card alongside the primary chart plus a separate details section for metadata and the resolved request. When a prompt needs more than one view, SmartTap can now return companion charts as part of the same evidence package. Explanation text is generated from task-aware and evidence-pattern-aware rules, not as a free-form LLM sidecar.
 
 ## Data Requirements
 
@@ -88,6 +90,7 @@ smarttap.py                Thin CLI wrapper
 core/data_fetcher.py       Local/API data access
 core/location_crop_query.py OpenET crop and field queries
 core/validation.py         Query and payload validation
+core/evidence_router.py    Evidence-pattern routing and chart-package selection
 core/visualizer.py         Chart rendering and Vega-Lite specs
 llm/interpretation.py      Ollama-backed natural-language parsing
 tests/                     Deterministic tests for the retained product surface
@@ -98,5 +101,5 @@ tests/                     Deterministic tests for the retained product surface
 Run the retained tests with:
 
 ```bash
-python -m pytest -q tests/test_imports.py tests/test_visualizer.py tests/test_data_fetcher.py tests/test_service.py
+python -m pytest -q tests/test_imports.py tests/test_visualizer.py tests/test_data_fetcher.py tests/test_contracts.py tests/test_service.py
 ```

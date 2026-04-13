@@ -23,8 +23,12 @@ AGRIMET_VARIABLE_LABELS: Dict[str, str] = {
 
 OPENET_VARIABLE_LABELS: Dict[str, str] = {
     "ETa": "Evapotranspiration (in)",
+    "ETDa": "Potential Crop Water Demand",
     "PPT": "Precipitation (in)",
+    "Prz": "Usable Rainfall (in)",
     "AW": "Applied Water (acre-ft)",
+    "NIWR": "Net Irrigation Water Requirement",
+    "IRR_CU_VOLUMEadj": "Adjusted Irrigation Consumptive Use",
     "WS_C": "Water Stress Coefficient",
     "P_rz": "Root Zone Precip (in)",
     "AREA": "Farmland Area (acres)",
@@ -46,7 +50,15 @@ OPENET_VARIABLE_ALIASES: Dict[str, str] = {
     "ppt": "PPT",
     "precip": "PPT",
     "precipitation": "PPT",
+    "prz": "Prz",
+    "usable_rain": "Prz",
     "aw": "AW",
+    "niwr": "NIWR",
+    "irrigation_need": "NIWR",
+    "irrigation_demand": "NIWR",
+    "etda": "ETDa",
+    "potential_water_need": "ETDa",
+    "irr_cu_volumeadj": "IRR_CU_VOLUMEadj",
     "ws": "WS_C",
     "wsc": "WS_C",
     "area": "AREA",
@@ -76,4 +88,3 @@ def variable_label(variable: str) -> str:
 def normalize_openet_variable(variable: str) -> str:
     cleaned = (variable or "").strip()
     return OPENET_VARIABLE_ALIASES.get(cleaned.lower(), cleaned)
-
