@@ -9,7 +9,7 @@ from core.contracts import (
     build_preview,
     build_success_result,
 )
-from core.crop_utils import canonicalize_crop_name, crop_name_variants
+from core.crop_utils import canonicalize_crop_name, crop_name_variants, matching_crop_codes
 from core.data_fetcher import get_dataset_adapter
 from core.location_resolver import resolve_agrimet_location
 from core.validation import validate_and_fix_spec
@@ -89,6 +89,20 @@ def test_crop_name_canonicalization_handles_plural_forms():
     assert canonicalize_crop_name("potatoes") == "Potato"
     assert canonicalize_crop_name("berries") == "Berry"
     assert "potatoes" in crop_name_variants("Potato")
+
+
+def test_matching_crop_codes_prefers_exact_label_before_broader_family_matches():
+    crop_names = {
+        21: {"name": "Barley"},
+        22: {"name": "Durum Wheat"},
+        23: {"name": "Spring Wheat"},
+        24: {"name": "Winter Wheat"},
+        36: {"name": "Alfalfa"},
+        37: {"name": "Other Hay/Non Alfalfa"},
+    }
+
+    assert matching_crop_codes("Alfalfa", crop_names) == [36]
+    assert matching_crop_codes("Wheat", crop_names) == [22, 23, 24]
 
 
 def test_resolve_agrimet_location_handles_supported_and_unsupported_places():

@@ -67,21 +67,34 @@ def matching_crop_codes(crop_filter: str, crop_names: Dict[int, Dict]) -> List[i
     if not canonical:
         return []
 
-    normalized_filter = canonical.lower()
-    codes: List[int] = []
+    filter_variants = crop_name_variants(canonical)
+    exact_codes: List[int] = []
     for code, info in crop_names.items():
         crop_name = canonicalize_crop_name(str(info.get("name") or ""))
         if not crop_name:
             continue
-        crop_lower = crop_name.lower()
-        if (
-            normalized_filter in crop_lower
-            or crop_lower in normalized_filter
-            or normalized_filter.rstrip("s") in crop_lower
-            or crop_lower.rstrip("s") in normalized_filter
-        ):
-            codes.append(code)
-    return codes
+        if crop_name.lower() in filter_variants:
+            exact_codes.append(code)
+
+    # Prefer exact crop-label matches whenever they exist so a request like
+    # "Alfalfa" does not silently expand to labels such as "Other Hay/Non Alfalfa".
+    if exact_codes:
+        return exact_codes
+
+    filter_tokens = set(normalize_free_text(canonical).split())
+    if not filter_tokens:
+        return []
+
+    token_codes: List[int] = []
+    for code, info in crop_names.items():
+        crop_name = canonicalize_crop_name(str(info.get("name") or ""))
+        if not crop_name:
+            continue
+        crop_tokens = set(normalize_free_text(crop_name).split())
+        if filter_tokens.issubset(crop_tokens):
+            token_codes.append(code)
+
+    return token_codes
 
 
 def best_crop_keyword_match(text: str, crop_candidates: Iterable[str]) -> str:

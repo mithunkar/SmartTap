@@ -1,0 +1,87 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Farmland Area (acres) for Alfalfa Fields near Morrow County (County)",
+  "data": {
+    "values": [
+      {
+        "datetime": "2014-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 25360.834655207
+      },
+      {
+        "datetime": "2015-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 19922.516165802
+      },
+      {
+        "datetime": "2016-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 16490.252891034004
+      },
+      {
+        "datetime": "2017-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 14563.19551641
+      },
+      {
+        "datetime": "2018-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 14066.037059351
+      },
+      {
+        "datetime": "2019-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 13495.135237510998
+      },
+      {
+        "datetime": "2020-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 13420.82730234
+      },
+      {
+        "datetime": "2021-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 13759.923317120001
+      },
+      {
+        "datetime": "2022-01-01T00:00:00",
+        "variable": "ACRES_FTR_GEOM",
+        "value": 13750.083126247
+      }
+    ]
+  },
+  "mark": {
+    "type": "line"
+  },
+  "encoding": {
+    "x": {
+      "field": "datetime",
+      "type": "temporal",
+      "title": "Date/Time"
+    },
+    "y": {
+      "field": "value",
+      "type": "quantitative",
+      "title": "Value"
+    },
+    "color": {
+      "field": "variable",
+      "type": "nominal",
+      "title": "Variable"
+    },
+    "tooltip": [
+      {
+        "field": "datetime",
+        "type": "temporal"
+      },
+      {
+        "field": "variable",
+        "type": "nominal"
+      },
+      {
+        "field": "value",
+        "type": "quantitative"
+      }
+    ]
+  }
+}

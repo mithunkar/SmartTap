@@ -147,6 +147,33 @@ def test_crop_summary_confirmation_then_success(monkeypatch):
     _assert_partner_artifacts(final)
 
 
+def test_morrow_alfalfa_natural_language_query_returns_yearly_openet_rows():
+    query = "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?"
+
+    initial = process_query(query, spec={"partner_query_id": "service_morrow_alfalfa"})
+
+    assert initial["success"] is False
+    assert initial["needs_confirmation"] is True
+    assert initial["spec"]["dataset"] == "openet"
+    assert initial["spec"]["display_location"] == "Morrow County"
+    assert initial["spec"]["variables"] == ["ACRES_FTR_GEOM"]
+    assert initial["spec"]["crop_filter"] == "Alfalfa"
+
+    final = confirm_query(
+        pending_spec=initial["spec"],
+        original_query=query,
+    )
+
+    assert final["success"] is True
+    assert final["summary"]["dataset"] == "openet"
+    assert final["summary"]["location"] == "Morrow County"
+    assert len(final["data"]) == 9
+    assert final["data"]["datetime"].min().strftime("%Y-%m-%d") == "2014-01-01"
+    assert final["data"]["datetime"].max().strftime("%Y-%m-%d") == "2022-01-01"
+    assert (final["data"]["ACRES_FTR_GEOM"] > 0).all()
+    _assert_partner_artifacts(final)
+
+
 def test_incomplete_query_returns_clarification_request():
     result = process_query(
         "Show temperature",

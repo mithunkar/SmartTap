@@ -1,6 +1,6 @@
 # Verification Notes
 
-- Prompt: what crops are grown in morrow county?
+- Prompt: what crops are grown in Morrow County?
 - Display location: Morrow County
 - Variables: Crop Category
 - Date range: 2024

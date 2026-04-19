@@ -20,6 +20,13 @@ from .crop_utils import matching_crop_codes
 GROUPABLE_FIELDS = {"IRR_STATUS", "ITYPE", "CROP"}
 DERIVED_ANNUAL_VARS = {"AREA", "ACRES_FTR_GEOM", "CROP", "IRR_STATUS", "per_IRRIGATED", "IRR_EFF", "ITYPE"}
 
+
+def normalize_county_name(county_name: str) -> str:
+    cleaned = " ".join(str(county_name or "").strip().split())
+    if cleaned.lower().endswith(" county"):
+        cleaned = cleaned[:-7].strip()
+    return cleaned
+
 class LocationCropQuery:
     """Query crops by location using field_points.gpkg and CROP data"""
     
@@ -119,12 +126,13 @@ class LocationCropQuery:
     def find_fields_by_county(self, county_name: str) -> pd.DataFrame:
         """Find all fields in a county"""
         conn = sqlite3.connect(self.field_points_gpkg)
+        normalized_county = normalize_county_name(county_name)
         
         query = f"""
         SELECT OPENET_ID, County, Nearest_City_1, Nearest_City_2,
                Longitude, Latitude
         FROM field_points
-        WHERE County LIKE '%{county_name}%'
+        WHERE County LIKE '%{normalized_county}%'
         """
         
         df = pd.read_sql_query(query, conn)
@@ -342,12 +350,13 @@ class LocationCropQuery:
         
         # Get field locations
         conn = sqlite3.connect(self.field_points_gpkg)
+        normalized_county = normalize_county_name(county) if county else county
         
         if county:
             query = f"""
             SELECT OPENET_ID, County, Nearest_City_1, Longitude, Latitude
             FROM field_points
-            WHERE County LIKE '%{county}%'
+            WHERE County LIKE '%{normalized_county}%'
             """
         else:
             query = "SELECT OPENET_ID, County, Nearest_City_1, Longitude, Latitude FROM field_points"
@@ -559,19 +568,24 @@ class LocationCropQuery:
         openet_ids: List[str],
         crop_filter: Optional[str],
         year: int,
-    ) -> tuple[List[str], List[str]]:
+    ) -> tuple[List[str], List[str], str]:
         if not crop_filter:
-            return openet_ids, []
+            return openet_ids, [], "no_filter"
 
         crops = self.get_crops_for_fields(openet_ids, year)
         matching_codes = self._crop_codes_from_filter(crop_filter)
-        if not matching_codes or crops.empty:
-            return openet_ids, []
+        if not matching_codes:
+            return [], [], "unknown_crop"
+        if crops.empty:
+            matched_crop_names = [self.crop_names[code]["name"] for code in matching_codes[:3] if code in self.crop_names]
+            return [], matched_crop_names, "no_crop_fields"
 
         crops_filtered = crops[crops["crop_code"].isin(matching_codes)]
         filtered_ids = crops_filtered["OPENET_ID"].tolist()
         matched_crop_names = [self.crop_names[code]["name"] for code in matching_codes[:3] if code in self.crop_names]
-        return filtered_ids, matched_crop_names
+        if not filtered_ids:
+            return [], matched_crop_names, "no_crop_fields"
+        return filtered_ids, matched_crop_names, "filter_applied"
 
     def _query_variable_by_location(
         self,
@@ -591,7 +605,7 @@ class LocationCropQuery:
             place = f"near {location}" if location_type == "city" else f"in {location} County"
             print(f"No fields found {place}")
             if return_metadata:
-                return pd.DataFrame(), {"field_count": 0, "fields": []}
+                return pd.DataFrame(), {"field_count": 0, "fields": [], "no_data_reason": "no_fields"}
             return pd.DataFrame()
 
         openet_ids = fields["OPENET_ID"].tolist()
@@ -604,12 +618,12 @@ class LocationCropQuery:
 
         if crop_filter:
             year = pd.to_datetime(start_date).year
-            filtered_ids, matched_crop_names = self._filter_field_ids_by_crop(
+            filtered_ids, matched_crop_names, crop_status = self._filter_field_ids_by_crop(
                 openet_ids=openet_ids,
                 crop_filter=crop_filter,
                 year=year,
             )
-            if matched_crop_names:
+            if crop_status == "filter_applied":
                 openet_ids = filtered_ids
                 print(
                     f"Filtered to {len(openet_ids)} {'/'.join(matched_crop_names)} fields "
@@ -617,12 +631,22 @@ class LocationCropQuery:
                 )
                 field_metadata["crop_filter"] = crop_filter
                 field_metadata["field_count_after_filter"] = len(openet_ids)
+                field_metadata["matched_crop_names"] = matched_crop_names
+            elif crop_status == "unknown_crop":
+                print(f"Warning: No crop found matching '{crop_filter}'")
+                field_metadata["crop_filter"] = crop_filter
+                field_metadata["no_data_reason"] = "unknown_crop"
             else:
-                print(f"Warning: No crop found matching '{crop_filter}', using all fields")
+                print(f"No {crop_filter} fields found {'near' if location_type == 'city' else 'in'} {location}")
+                field_metadata["crop_filter"] = crop_filter
+                field_metadata["matched_crop_names"] = matched_crop_names
+                field_metadata["field_count_after_filter"] = 0
+                field_metadata["no_data_reason"] = "no_crop_fields"
         else:
             print(f"Querying {variable} for {len(openet_ids)} fields {'near' if location_type == 'city' else 'in'} {location}")
 
         if not openet_ids:
+            field_metadata.setdefault("no_data_reason", "no_crop_fields" if crop_filter else "no_fields")
             if return_metadata:
                 return pd.DataFrame(), field_metadata
             return pd.DataFrame()
@@ -658,6 +682,8 @@ class LocationCropQuery:
         if not result.empty:
             result["location"] = location
             result["location_type"] = location_type
+        else:
+            field_metadata.setdefault("no_data_reason", "no_variable_rows")
 
         if return_metadata:
             return result, field_metadata
@@ -1114,7 +1140,8 @@ class LocationCropQuery:
     def query_variable_by_county(self, county_name: str, variable: str,
                                  start_date: str, end_date: str,
                                  crop_filter: Optional[str] = None,
-                                 aggregation: str = "mean") -> pd.DataFrame:
+                                 aggregation: str = "mean",
+                                 return_metadata: bool = False) -> pd.DataFrame:
         """
         Query OpenET variable for fields in a county
         
@@ -1125,9 +1152,11 @@ class LocationCropQuery:
             end_date: End date (YYYY-MM-DD)
             crop_filter: Optional crop name to filter
             aggregation: How to aggregate ("mean", "sum", "median")
+            return_metadata: If True, return tuple (data, field_metadata)
         
         Returns:
             DataFrame with datetime and variable timeseries
+            OR tuple of (DataFrame, dict) if return_metadata=True
         """
         return self._query_variable_by_location(
             location=county_name,
@@ -1137,6 +1166,7 @@ class LocationCropQuery:
             end_date=end_date,
             crop_filter=crop_filter,
             aggregation=aggregation,
+            return_metadata=return_metadata,
         )
 
 

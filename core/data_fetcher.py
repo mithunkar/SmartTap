@@ -145,6 +145,7 @@ def _openet_no_data_message(
     crop_filter: str | None,
     start_date: str | None,
     end_date: str | None,
+    reason: str | None = None,
 ) -> str:
     place = f"near {location}" if location_type == "city" else f"in {location}"
     if start_date and end_date:
@@ -152,6 +153,14 @@ def _openet_no_data_message(
     else:
         time_part = ""
 
+    if reason == "no_fields":
+        return f"No OpenET fields found {place}."
+    if reason == "unknown_crop" and crop_filter:
+        return f"No OpenET crop label matched '{crop_filter}' {place}{time_part}."
+    if reason == "no_crop_fields" and crop_filter:
+        return f"No OpenET fields matched crop '{crop_filter}' {place}{time_part}."
+    if reason == "no_variable_rows" and crop_filter:
+        return f"No OpenET variable rows were found for {crop_filter} fields {place}{time_part}."
     if crop_filter:
         return f"No OpenET data found for {crop_filter} fields {place}{time_part}."
     return f"No OpenET data found for '{location}'."
@@ -257,30 +266,35 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         query_system = LocationCropQuery(full_oregon_gpkg=str(FULL_OREGON_GPKG))
 
         results: Dict[str, pd.DataFrame] = {}
+        no_data_reasons: List[str] = []
         for variable in variables:
             if location_type == "city":
-                frame = query_system.query_variable_by_city(
+                frame, metadata = query_system.query_variable_by_city(
                     city_name=location,
                     variable=variable,
                     start_date=start_date or "2024-01-01",
                     end_date=end_date or "2024-12-31",
                     crop_filter=crop_filter,
                     aggregation=aggregation,
+                    return_metadata=True,
                 )
             elif location_type == "county":
-                frame = query_system.query_variable_by_county(
+                frame, metadata = query_system.query_variable_by_county(
                     county_name=location,
                     variable=variable,
                     start_date=start_date or "2024-01-01",
                     end_date=end_date or "2024-12-31",
                     crop_filter=crop_filter,
                     aggregation=aggregation,
+                    return_metadata=True,
                 )
             else:
                 raise ValueError(f"location_type must be city or county, got {location_type}")
 
             if not frame.empty:
                 results[variable] = frame[["datetime", variable]].copy()
+            else:
+                no_data_reasons.append(str(metadata.get("no_data_reason") or ""))
 
         if not results:
             raise ValueError(
@@ -290,6 +304,7 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
                     crop_filter=str(crop_filter) if crop_filter else None,
                     start_date=str(start_date) if start_date else None,
                     end_date=str(end_date) if end_date else None,
+                    reason=next((value for value in no_data_reasons if value), None),
                 )
             )
 

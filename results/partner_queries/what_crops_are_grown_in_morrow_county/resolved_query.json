@@ -1,5 +1,5 @@
 {
-  "prompt": "what crops are grown in morrow county?",
+  "prompt": "what crops are grown in Morrow County?",
   "spec": {
     "task": "summarize_crops",
     "location": "Morrow County",

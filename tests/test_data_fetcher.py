@@ -12,6 +12,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.data_fetcher import fetch_data, fetch_agrimet_data, fetch_openet_data, resolve_agrimet_location
+from core.location_crop_query import LocationCropQuery
 
 
 class TestDataFetcher(unittest.TestCase):
@@ -170,7 +171,7 @@ class TestDataFetcher(unittest.TestCase):
                 pass
 
             def query_variable_by_city(self, **kwargs):
-                return __import__("pandas").DataFrame()
+                return __import__("pandas").DataFrame(), {"no_data_reason": "no_variable_rows"}
 
         spec = {
             "dataset": "openet",
@@ -190,8 +191,74 @@ class TestDataFetcher(unittest.TestCase):
 
         self.assertEqual(
             str(exc.exception),
-            "No OpenET data found for Cucumber fields near Corvallis for 2016-01-01 to 2024-12-31.",
+            "No OpenET variable rows were found for Cucumber fields near Corvallis for 2016-01-01 to 2024-12-31.",
         )
+
+    def test_openet_crop_filter_no_matching_fields_has_specific_error_message(self):
+        """Crop-filtered empty field matches should point to the crop/location filter failure."""
+
+        class FakeLocationCropQuery:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def query_variable_by_city(self, **kwargs):
+                return __import__("pandas").DataFrame(), {"no_data_reason": "no_crop_fields"}
+
+        spec = {
+            "dataset": "openet",
+            "openet_geo": "location",
+            "location": "Corvallis",
+            "location_type": "city",
+            "crop_filter": "Cucumber",
+            "variables": ["ETa"],
+            "start_date": "2016-01-01",
+            "end_date": "2024-12-31",
+            "interval": "monthly",
+        }
+
+        with patch("core.data_fetcher.LocationCropQuery", FakeLocationCropQuery):
+            with self.assertRaises(ValueError) as exc:
+                fetch_openet_data(spec)
+
+        self.assertEqual(
+            str(exc.exception),
+            "No OpenET fields matched crop 'Cucumber' near Corvallis for 2016-01-01 to 2024-12-31.",
+        )
+
+    def test_openet_county_lookup_accepts_county_suffix(self):
+        """County-based OpenET queries should work with or without a trailing 'County' suffix."""
+        query = LocationCropQuery(full_oregon_gpkg="data/preliminary_or_field_geopackage.gpkg")
+
+        direct = query.find_fields_by_county("Morrow")
+        with_suffix = query.find_fields_by_county("Morrow County")
+
+        self.assertEqual(len(direct), len(with_suffix))
+        self.assertEqual(set(direct["OPENET_ID"]), set(with_suffix["OPENET_ID"]))
+
+    def test_openet_alfalfa_area_query_by_county_returns_yearly_rows(self):
+        """The Morrow County alfalfa acreage query should return annual rows instead of a false no-data result."""
+        query = LocationCropQuery(full_oregon_gpkg="data/preliminary_or_field_geopackage.gpkg")
+
+        result = query.query_variable_by_county(
+            "Morrow County",
+            variable="ACRES_FTR_GEOM",
+            start_date="2014-01-01",
+            end_date="2022-12-31",
+            crop_filter="Alfalfa",
+        )
+
+        self.assertEqual(len(result), 9)
+        self.assertEqual(result["datetime"].min().strftime("%Y-%m-%d"), "2014-01-01")
+        self.assertEqual(result["datetime"].max().strftime("%Y-%m-%d"), "2022-01-01")
+        self.assertTrue((result["ACRES_FTR_GEOM"] > 0).all())
+
+    def test_morrow_crop_summary_still_lists_alfalfa(self):
+        """The existing crop-summary flow should still surface Alfalfa for Morrow County."""
+        query = LocationCropQuery(full_oregon_gpkg="data/preliminary_or_field_geopackage.gpkg")
+
+        result = query.query_crops_by_county("Morrow County", year=2024)
+
+        self.assertIn("Alfalfa", set(result["crop_name"]))
 
 
 if __name__ == "__main__":

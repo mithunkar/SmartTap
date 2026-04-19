@@ -23,7 +23,7 @@ from core.contracts import (
     build_success_result,
 )
 from core.data_fetcher import fetch_data, fetch_grouped_data, supported_agrimet_locations
-from core.location_crop_query import LocationCropQuery
+from core.location_crop_query import LocationCropQuery, normalize_county_name
 from core.validation import validate_and_fix_spec, validate_payload
 from core.explanation import build_result_explanation
 from core.variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, variable_label
@@ -89,8 +89,8 @@ def _init_location_query() -> LocationCropQuery:
 
 
 def _clean_location_name(location: str, location_type: str) -> str:
-    if location_type == "county" and location.lower().endswith(" county"):
-        return location[:-7].strip()
+    if location_type == "county":
+        return normalize_county_name(location)
     return location
 
 

@@ -21,7 +21,18 @@ def _looks_like_new_query(text: str) -> bool:
 
 
 def _display_spec(spec: dict) -> dict:
-    hidden_keys = {"notes"}
+    hidden_keys = {
+        "notes",
+        "confirmed_fields",
+        "confirmation_status",
+        "openet_geo",
+        "openet_id",
+        "huc8_code",
+        "secondary_variables",
+        "chart_package",
+        "source_datasets",
+        "display_location",
+    }
     display = {}
     for key, value in (spec or {}).items():
         if key in hidden_keys:
@@ -30,6 +41,77 @@ def _display_spec(spec: dict) -> dict:
             continue
         display[key] = value
     return display
+
+
+def _format_label(key: str) -> str:
+    return key.replace("_", " ").title()
+
+
+def _format_value(value) -> str:
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
+def _result_snapshot(details: dict) -> list[tuple[str, str]]:
+    ordered_keys = [
+        "location",
+        "variable_labels",
+        "date_range",
+        "row_count",
+        "total_fields",
+        "total_crops",
+        "groups",
+        "group_count",
+    ]
+    items: list[tuple[str, str]] = []
+    for key in ordered_keys:
+        value = details.get(key)
+        if value in (None, "", [], {}):
+            continue
+        label = "Variables" if key == "variable_labels" else _format_label(key)
+        items.append((label, _format_value(value)))
+    return items
+
+
+def _resolved_request_items(spec: dict) -> list[tuple[str, str]]:
+    display_keys = _display_spec(spec)
+    ordered_keys = [
+        "task",
+        "dataset",
+        "location",
+        "location_type",
+        "variables",
+        "crop_filter",
+        "start_date",
+        "end_date",
+        "year",
+        "interval",
+        "aggregation",
+        "compare_by",
+        "split_by",
+        "group_by",
+        "station_id",
+        "chart_type",
+        "evidence_pattern",
+    ]
+    items: list[tuple[str, str]] = []
+    for key in ordered_keys:
+        value = display_keys.get(key)
+        if value in (None, "", [], {}):
+            continue
+        items.append((_format_label(key), _format_value(value)))
+    return items
+
+
+def _render_definition_list(items: list[tuple[str, str]], columns: int = 2) -> None:
+    if not items:
+        return
+    cols = st.columns(columns)
+    for index, (label, value) in enumerate(items):
+        with cols[index % columns]:
+            st.markdown(f"**{label}**")
+            st.caption(value)
 
 
 def _init_state() -> None:
@@ -103,20 +185,13 @@ def _render_header() -> None:
 
 def _render_sidebar() -> None:
     with st.sidebar:
-        st.subheader("Supported Tasks")
+        st.subheader("What SmartTap Does")
         st.markdown(
             """
-            - Evidence-oriented time series charts
-            - Statistical snapshots
-            - Crop ranking and distribution summaries
-            - Multi-variable comparisons
-            - Coordinated cross-dataset evidence packages
+            - Builds charts from plain-English ag and weather questions
+            - Shows a short explanation plus inspectable source rows
+            - Supports crop summaries, trends, and comparisons
             """
-        )
-
-        st.caption(
-            "Canonical taxonomy also tracks next-step patterns: "
-            "`comparison_grouped`, `change_over_period`, `ranking_metric`, and `seasonality_pattern`."
         )
 
         st.subheader("Example Queries")
@@ -266,45 +341,16 @@ def _render_result_details() -> None:
     if not details and not spec:
         return
 
-    with st.expander("Result Details", expanded=True):
+    with st.expander("Result Details", expanded=False):
         if details:
-            st.markdown("**Metadata**")
-            for key, value in details.items():
-                if key == "variables_list":
-                    continue
-                st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
+            snapshot_items = _result_snapshot(details)
+            if snapshot_items:
+                st.markdown("**Snapshot**")
+                _render_definition_list(snapshot_items, columns=2)
 
         if spec:
             st.markdown("**Resolved Request**")
-            display_keys = _display_spec(spec)
-            ordered_keys = [
-                "task",
-                "dataset",
-                "location",
-                "location_type",
-                "station_id",
-                "variables",
-                "start_date",
-                "end_date",
-                "year",
-                "interval",
-                "chart_type",
-                "aggregation",
-                "crop_filter",
-                "evidence_pattern",
-                "group_by",
-                "compare_by",
-                "split_by",
-                "secondary_variables",
-                "source_datasets",
-                "chart_package",
-                "clarification_needed",
-            ]
-            for key in ordered_keys:
-                value = display_keys.get(key)
-                if value in (None, "", [], {}):
-                    continue
-                st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
+            _render_definition_list(_resolved_request_items(spec), columns=2)
 
 
 def _render_results() -> None:
@@ -315,8 +361,7 @@ def _render_results() -> None:
         st.warning("Confirmation required before SmartTap runs this request.")
         st.markdown(st.session_state.messages[-1]["content"] if st.session_state.messages else "")
         with st.expander("Resolved Request", expanded=True):
-            for key, value in _display_spec(spec).items():
-                st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
+            _render_definition_list(_resolved_request_items(spec), columns=2)
         confirm_col, edit_col = st.columns(2)
         with confirm_col:
             if st.button("Confirm And Run", use_container_width=True):
@@ -356,39 +401,44 @@ def _render_results() -> None:
                 st.image(image, use_container_width=True)
             preview = view.get("data_preview")
             if preview is not None:
-                with st.expander(f"Companion Data Preview {index}"):
+                with st.expander(f"Companion Data Preview {index}", expanded=False):
                     st.dataframe(preview, use_container_width=True, height=220)
-            if view.get("vega_spec") is not None:
-                with st.expander(f"Companion Vega-Lite Spec {index}"):
-                    st.json(view["vega_spec"])
 
     _render_result_details()
 
     if st.session_state.current_data is not None:
-        st.subheader("Data Preview")
-        st.dataframe(st.session_state.current_data, use_container_width=True, height=300)
-        st.download_button(
-            "Download Data (CSV)",
-            data=st.session_state.current_data.to_csv(index=False),
-            file_name=f"smarttap_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-        )
-
-    if st.session_state.current_vega_spec is not None:
-        with st.expander("Vega-Lite Spec"):
-            st.json(st.session_state.current_vega_spec)
+        with st.expander("Data Preview", expanded=True):
+            st.dataframe(st.session_state.current_data, use_container_width=True, height=300)
             st.download_button(
-                "Download Vega Spec",
-                data=json.dumps(st.session_state.current_vega_spec, indent=2),
-                file_name=f"smarttap_spec_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                mime="application/json",
+                "Download Data (CSV)",
+                data=st.session_state.current_data.to_csv(index=False),
+                file_name=f"smarttap_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv",
             )
 
-    if st.session_state.current_files:
-        with st.expander("Saved Files"):
-            for label, path in st.session_state.current_files.items():
-                if path:
-                    st.markdown(f"**{label.title()}**: `{path}`")
+    has_advanced = bool(st.session_state.current_vega_spec is not None or st.session_state.current_files or secondary_views)
+    if has_advanced:
+        with st.expander("Advanced", expanded=False):
+            if st.session_state.current_vega_spec is not None:
+                st.markdown("**Primary Vega-Lite Spec**")
+                st.json(st.session_state.current_vega_spec)
+                st.download_button(
+                    "Download Vega Spec",
+                    data=json.dumps(st.session_state.current_vega_spec, indent=2),
+                    file_name=f"smarttap_spec_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    mime="application/json",
+                )
+
+            for index, view in enumerate(secondary_views, start=1):
+                if view.get("vega_spec") is not None:
+                    with st.expander(f"Companion Vega-Lite Spec {index}", expanded=False):
+                        st.json(view["vega_spec"])
+
+            if st.session_state.current_files:
+                st.markdown("**Saved Files**")
+                for label, path in st.session_state.current_files.items():
+                    if path:
+                        st.markdown(f"**{label.title()}**: `{path}`")
 
 
 def main() -> None:
