@@ -1,0 +1,403 @@
+{
+  "cases": [
+    {
+      "id": "workbook_row_02",
+      "prompt": "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+      "raw_spec": {"partner_query_id": "workbook_row_02"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Morrow County",
+        "display_location": "Morrow County",
+        "location_type": "county",
+        "variables": ["ACRES_FTR_GEOM"],
+        "crop_filter": "Alfalfa",
+        "start_date": "2014-01-01",
+        "end_date": "2022-12-31",
+        "interval": "yearly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_03",
+      "prompt": "What crops were most commonly grown in Yamhill County between 2016 and 2023, especially corn?",
+      "raw_spec": {"partner_query_id": "workbook_row_03"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "summarize_crops",
+        "dataset": "openet",
+        "location": "Yamhill County",
+        "display_location": "Yamhill County",
+        "location_type": "county",
+        "variables": ["CROP"],
+        "crop_filter": "Corn",
+        "year": 2023,
+        "evidence_pattern": "ranking_categories",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "ranking_categories"}
+    },
+    {
+      "id": "workbook_row_04",
+      "prompt": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+      "raw_spec": {"partner_query_id": "workbook_row_04"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Deschutes County",
+        "display_location": "Deschutes County",
+        "location_type": "county",
+        "variables": ["per_IRRIGATED"],
+        "crop_filter": "Potato",
+        "start_date": "2018-01-01",
+        "end_date": "2024-12-31",
+        "interval": "yearly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_05",
+      "prompt": "What irrigation systems were most often used for wheat fields in Jefferson County between 2015 and 2021?",
+      "raw_spec": {"partner_query_id": "workbook_row_05"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Jefferson County",
+        "display_location": "Jefferson County",
+        "location_type": "county",
+        "variables": ["ITYPE"],
+        "crop_filter": "Wheat",
+        "start_date": "2015-01-01",
+        "end_date": "2021-12-31",
+        "interval": "yearly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_06",
+      "prompt": "Has irrigation efficiency improved for onion farms in Gilliam County from 2017 to 2023?",
+      "raw_spec": {"partner_query_id": "workbook_row_06"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Gilliam County",
+        "display_location": "Gilliam County",
+        "location_type": "county",
+        "variables": ["IRR_EFF"],
+        "crop_filter": "Onion",
+        "start_date": "2017-01-01",
+        "end_date": "2023-12-31",
+        "interval": "yearly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_07",
+      "prompt": "How many irrigated barley fields were recorded in Baker County from 2016 to 2020?",
+      "raw_spec": {"partner_query_id": "workbook_row_07"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Baker County",
+        "display_location": "Baker County",
+        "location_type": "county",
+        "variables": ["IRR_STATUS"],
+        "crop_filter": "Barley",
+        "start_date": "2016-01-01",
+        "end_date": "2020-12-31",
+        "interval": "yearly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_08",
+      "prompt": "How has crop water use changed for mint fields in Klamath County between 2019 and 2024?",
+      "raw_spec": {"partner_query_id": "workbook_row_08"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Klamath County",
+        "display_location": "Klamath County",
+        "location_type": "county",
+        "variables": ["ETa"],
+        "crop_filter": "Mint",
+        "start_date": "2019-01-01",
+        "end_date": "2024-12-31",
+        "interval": "monthly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_09",
+      "prompt": "How did potential water needs for sunflower crops evolve in Union County from 2013 to 2020?",
+      "raw_spec": {"partner_query_id": "workbook_row_09"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Union County",
+        "display_location": "Union County",
+        "location_type": "county",
+        "variables": ["ETDa"],
+        "crop_filter": "Sunflower",
+        "start_date": "2013-01-01",
+        "end_date": "2020-12-31",
+        "interval": "monthly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_10",
+      "prompt": "How much usable rainfall supported soybean fields in Wasco County between 2015 and 2021?",
+      "raw_spec": {"partner_query_id": "workbook_row_10"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Wasco County",
+        "display_location": "Wasco County",
+        "location_type": "county",
+        "variables": ["Prz"],
+        "crop_filter": "Soybean",
+        "start_date": "2015-01-01",
+        "end_date": "2021-12-31",
+        "interval": "monthly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_11",
+      "prompt": "What rainfall patterns affected apple orchards in Hood River County from 2014 to 2022?",
+      "raw_spec": {"partner_query_id": "workbook_row_11"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Hood River County",
+        "display_location": "Hood River County",
+        "location_type": "county",
+        "variables": ["PPT"],
+        "crop_filter": "Apple",
+        "start_date": "2014-01-01",
+        "end_date": "2022-12-31",
+        "interval": "monthly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_12",
+      "prompt": "How much irrigation water was consumed by rice farms in Lake County between 2018 and 2024?",
+      "raw_spec": {"partner_query_id": "workbook_row_12"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Lake County",
+        "display_location": "Lake County",
+        "location_type": "county",
+        "variables": ["IRR_CU_VOLUMEadj"],
+        "crop_filter": "Rice",
+        "start_date": "2018-01-01",
+        "end_date": "2024-12-31",
+        "interval": "monthly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_13",
+      "prompt": "How did irrigation demand change for blueberry farms in Sherman County between 2015 and 2023?",
+      "raw_spec": {"partner_query_id": "workbook_row_13"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Sherman County",
+        "display_location": "Sherman County",
+        "location_type": "county",
+        "variables": ["NIWR"],
+        "crop_filter": "Blueberry",
+        "start_date": "2015-01-01",
+        "end_date": "2023-12-31",
+        "interval": "monthly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_14",
+      "prompt": "How much irrigation water was applied to lettuce farms in Harney County from 2017 to 2024?",
+      "raw_spec": {"partner_query_id": "workbook_row_14"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location": "Harney County",
+        "display_location": "Harney County",
+        "location_type": "county",
+        "variables": ["AW"],
+        "crop_filter": "Lettuce",
+        "start_date": "2017-01-01",
+        "end_date": "2024-12-31",
+        "interval": "monthly",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["openet"]
+      },
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_15",
+      "prompt": "How did water demand change near Pendleton for grape vineyards between 2016 and 2023?",
+      "raw_spec": {"partner_query_id": "workbook_row_15"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "location": "pendleton",
+        "display_location": "Pendleton",
+        "location_type": "city",
+        "variables": ["PEN_ET"],
+        "crop_filter": "Grape",
+        "start_date": "2016-01-01",
+        "end_date": "2023-12-31",
+        "interval": "daily",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["agrimet"],
+        "station_id": "ptro"
+      },
+      "expected_final": {"status": "success", "dataset": "agrimet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_16",
+      "prompt": "How did rainfall accumulate around Ontario affecting tomato farms between 2018 and 2024?",
+      "raw_spec": {"partner_query_id": "workbook_row_16"},
+      "expected_initial": {
+        "status": "confirmation",
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "location": "ontario",
+        "display_location": "Ontario",
+        "location_type": "city",
+        "variables": ["24_HR_PCP"],
+        "crop_filter": "Tomato",
+        "start_date": "2018-01-01",
+        "end_date": "2024-12-31",
+        "interval": "daily",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["agrimet"],
+        "station_id": "onto"
+      },
+      "expected_final": {"status": "success", "dataset": "agrimet", "evidence_pattern": "trend_single"}
+    },
+    {
+      "id": "workbook_row_17",
+      "prompt": "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?",
+      "raw_spec": {"partner_query_id": "workbook_row_17"},
+      "expected_initial": {
+        "status": "clarification",
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "location": "Medford",
+        "display_location": "Medford",
+        "location_type": "city",
+        "variables": ["AVG_TMP"],
+        "crop_filter": "Peach",
+        "start_date": "2015-01-01",
+        "end_date": "2023-12-31",
+        "interval": "daily",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["agrimet"],
+        "clarification_fields": ["station"]
+      }
+    },
+    {
+      "id": "workbook_row_18",
+      "prompt": "How did humidity levels change around La Grande impacting oat crops from 2016 to 2022?",
+      "raw_spec": {"partner_query_id": "workbook_row_18"},
+      "expected_initial": {
+        "status": "clarification",
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "location": "La Grande",
+        "display_location": "La Grande",
+        "location_type": "city",
+        "variables": ["AVG_HUM"],
+        "crop_filter": "Oat",
+        "start_date": "2016-01-01",
+        "end_date": "2022-12-31",
+        "interval": "daily",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["agrimet"],
+        "clarification_fields": ["station"]
+      }
+    },
+    {
+      "id": "workbook_row_19",
+      "prompt": "How did wind patterns change near Madras affecting carrot farms between 2014 and 2021?",
+      "raw_spec": {"partner_query_id": "workbook_row_19"},
+      "expected_initial": {
+        "status": "clarification",
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "location": "Madras",
+        "display_location": "Madras",
+        "location_type": "city",
+        "variables": ["AV_WSPD"],
+        "crop_filter": "Carrot",
+        "start_date": "2014-01-01",
+        "end_date": "2021-12-31",
+        "interval": "daily",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["agrimet"],
+        "clarification_fields": ["station"]
+      }
+    },
+    {
+      "id": "workbook_row_20",
+      "prompt": "How did crop growth characteristics change for grass seed near Salem between 2019 and 2023?",
+      "raw_spec": {"partner_query_id": "workbook_row_20"},
+      "expected_initial": {
+        "status": "clarification",
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "location": "Salem",
+        "display_location": "Salem",
+        "location_type": "city",
+        "variables": ["Kc"],
+        "crop_filter": "Grass Seed",
+        "start_date": "2019-01-01",
+        "end_date": "2023-12-31",
+        "interval": "daily",
+        "evidence_pattern": "trend_single",
+        "source_datasets": ["agrimet"],
+        "clarification_fields": ["station"]
+      }
+    }
+  ]
+}

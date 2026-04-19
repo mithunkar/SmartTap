@@ -8,7 +8,28 @@ from datetime import datetime
 import streamlit as st
 from PIL import Image
 
-from smarttap_service import process_clarification_reply, process_query
+from smarttap_service import confirm_query, process_clarification_reply, process_query
+
+
+def _looks_like_new_query(text: str) -> bool:
+    lowered = (text or "").strip().lower()
+    if not lowered:
+        return False
+    if len(lowered.split()) <= 2 and all(token.isalpha() for token in lowered.split()):
+        return False
+    return True
+
+
+def _display_spec(spec: dict) -> dict:
+    hidden_keys = {"notes"}
+    display = {}
+    for key, value in (spec or {}).items():
+        if key in hidden_keys:
+            continue
+        if value in (None, "", [], {}):
+            continue
+        display[key] = value
+    return display
 
 
 def _init_state() -> None:
@@ -23,6 +44,7 @@ def _init_state() -> None:
         "current_explanation": None,
         "current_secondary_views": None,
         "pending_spec": None,
+        "confirmation_spec": None,
         "original_query": None,
     }
     for key, value in defaults.items():
@@ -92,6 +114,11 @@ def _render_sidebar() -> None:
             """
         )
 
+        st.caption(
+            "Canonical taxonomy also tracks next-step patterns: "
+            "`comparison_grouped`, `change_over_period`, `ranking_metric`, and `seasonality_pattern`."
+        )
+
         st.subheader("Example Queries")
         st.markdown(
             """
@@ -113,6 +140,7 @@ def _render_sidebar() -> None:
                 "current_explanation",
                 "current_secondary_views",
                 "pending_spec",
+                "confirmation_spec",
                 "original_query",
             ]:
                 st.session_state[key] = [] if key == "messages" else None
@@ -123,10 +151,50 @@ def _append_result_message(query: str, result: dict) -> None:
     if result["success"]:
         task = result["spec"]["task"]
         st.session_state.messages.append({"role": "assistant", "content": f"Generated a `{task}` result for: {query}"})
+    elif result.get("needs_confirmation"):
+        st.session_state.messages.append({"role": "assistant", "content": result["confirmation_prompt"]})
     elif result.get("needs_clarification"):
         st.session_state.messages.append({"role": "assistant", "content": result["clarification_prompt"]})
     else:
         st.session_state.messages.append({"role": "assistant", "content": f"Error: {result['error']}"})
+
+
+def _clear_current_result() -> None:
+    st.session_state.current_chart = None
+    st.session_state.current_data = None
+    st.session_state.current_details = None
+    st.session_state.current_spec = None
+    st.session_state.current_vega_spec = None
+    st.session_state.current_files = None
+    st.session_state.current_explanation = None
+    st.session_state.current_secondary_views = None
+
+
+def _apply_result(result: dict, query: str | None = None) -> None:
+    if result["success"]:
+        st.session_state.current_chart = result.get("chart_bytes")
+        st.session_state.current_data = result.get("data_preview")
+        st.session_state.current_details = result.get("summary")
+        st.session_state.current_spec = result.get("spec")
+        st.session_state.current_vega_spec = result.get("vega_spec")
+        st.session_state.current_files = result.get("files")
+        st.session_state.current_explanation = result.get("explanation", "")
+        st.session_state.current_secondary_views = result.get("secondary_views", [])
+        st.session_state.pending_spec = None
+        st.session_state.confirmation_spec = None
+        st.session_state.original_query = None
+    elif result.get("needs_confirmation"):
+        _clear_current_result()
+        st.session_state.pending_spec = None
+        st.session_state.confirmation_spec = result.get("spec")
+        if query:
+            st.session_state.original_query = st.session_state.original_query or query
+    elif result.get("needs_clarification"):
+        _clear_current_result()
+        st.session_state.pending_spec = result.get("spec")
+        st.session_state.confirmation_spec = None
+        if query:
+            st.session_state.original_query = st.session_state.original_query or query
 
 
 def _run_query(query: str) -> None:
@@ -139,24 +207,28 @@ def _run_query(query: str) -> None:
                 original_query=st.session_state.original_query,
             )
         else:
+            if st.session_state.confirmation_spec is not None:
+                st.session_state.confirmation_spec = None
+                st.session_state.original_query = None
             result = process_query(query)
 
-    if result["success"]:
-        st.session_state.current_chart       = result.get("chart_bytes")
-        st.session_state.current_data        = result.get("data_preview")
-        st.session_state.current_details     = result.get("summary")
-        st.session_state.current_spec        = result.get("spec")
-        st.session_state.current_vega_spec   = result.get("vega_spec")
-        st.session_state.current_files       = result.get("files")
-        st.session_state.current_explanation = result.get("explanation", "")
-        st.session_state.current_secondary_views = result.get("secondary_views", [])
-        st.session_state.pending_spec        = None
-        st.session_state.original_query      = None
-    elif result.get("needs_clarification"):
-        st.session_state.pending_spec = result.get("spec")
-        st.session_state.original_query = st.session_state.original_query or query
-
+    _apply_result(result, query=query)
     _append_result_message(query, result)
+
+
+def _run_confirmation() -> None:
+    if st.session_state.confirmation_spec is None or not st.session_state.original_query:
+        return
+
+    original_query = st.session_state.original_query
+    with st.spinner("Running SmartTap..."):
+        result = confirm_query(
+            pending_spec=st.session_state.confirmation_spec,
+            original_query=original_query,
+        )
+
+    _apply_result(result)
+    _append_result_message(original_query, result)
 
 
 def _render_chat() -> None:
@@ -180,7 +252,7 @@ def _render_explanation_card(explanation: str) -> None:
     st.markdown(
         f"""
         <div class="explanation-card">
-            <div class="explain-label">📖 What this means</div>
+            <div class="explain-label"> What this means</div>
             {safe_explanation}
         </div>
         """,
@@ -204,7 +276,8 @@ def _render_result_details() -> None:
 
         if spec:
             st.markdown("**Resolved Request**")
-            display_keys = [
+            display_keys = _display_spec(spec)
+            ordered_keys = [
                 "task",
                 "dataset",
                 "location",
@@ -225,9 +298,10 @@ def _render_result_details() -> None:
                 "secondary_variables",
                 "source_datasets",
                 "chart_package",
+                "clarification_needed",
             ]
-            for key in display_keys:
-                value = spec.get(key)
+            for key in ordered_keys:
+                value = display_keys.get(key)
                 if value in (None, "", [], {}):
                     continue
                 st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
@@ -235,6 +309,25 @@ def _render_result_details() -> None:
 
 def _render_results() -> None:
     st.subheader("Results")
+
+    if st.session_state.confirmation_spec is not None:
+        spec = st.session_state.confirmation_spec
+        st.warning("Confirmation required before SmartTap runs this request.")
+        st.markdown(st.session_state.messages[-1]["content"] if st.session_state.messages else "")
+        with st.expander("Resolved Request", expanded=True):
+            for key, value in _display_spec(spec).items():
+                st.markdown(f"**{key.replace('_', ' ').title()}**: {value}")
+        confirm_col, edit_col = st.columns(2)
+        with confirm_col:
+            if st.button("Confirm And Run", use_container_width=True):
+                _run_confirmation()
+                st.rerun()
+        with edit_col:
+            if st.button("Edit Request", use_container_width=True):
+                st.session_state.confirmation_spec = None
+                st.session_state.original_query = None
+                st.info("Enter a revised query in the chat to update the request.")
+        st.divider()
 
     if st.session_state.current_chart:
         image = Image.open(io.BytesIO(st.session_state.current_chart))
@@ -249,7 +342,8 @@ def _render_results() -> None:
             mime="image/png",
         )
     else:
-        st.info("Run a query to see a visualization.")
+        if st.session_state.confirmation_spec is None:
+            st.info("Run a query to see a visualization.")
 
     secondary_views = st.session_state.current_secondary_views or []
     if secondary_views:

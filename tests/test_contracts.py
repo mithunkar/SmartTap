@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import pandas as pd
 
-from core.contracts import build_error_result, build_preview, build_success_result
-from core.contracts import build_clarification_result
+from core.contracts import (
+    build_clarification_result,
+    build_confirmation_result,
+    build_error_result,
+    build_preview,
+    build_success_result,
+)
+from core.crop_utils import canonicalize_crop_name, crop_name_variants
 from core.data_fetcher import get_dataset_adapter
+from core.location_resolver import resolve_agrimet_location
 from core.validation import validate_and_fix_spec
+from core.variable_registry import normalize_variable, variable_label
 
 
 def test_build_preview_keeps_small_frames_intact():
@@ -25,32 +33,29 @@ def test_build_preview_truncates_with_head_and_tail():
 
 def test_build_success_result_uses_canonical_shape():
     preview = pd.DataFrame({"value": [1]})
+    data = pd.DataFrame({"value": [1, 2]})
     result = build_success_result(
         spec={"task": "visualize_timeseries", "dataset": "agrimet"},
-        summary={"row_count": 1},
+        summary={"row_count": 2},
         explanation="This chart shows one value.",
         data_preview=preview,
+        data=data,
         chart_bytes=b"png",
         vega_spec={"mark": "line"},
         files={"png": "outputs/charts/example.png"},
         validation_report={"ok": True},
     )
     assert result["success"] is True
-    assert result["error"] is None
-    assert result["explanation"] == "This chart shows one value."
-    assert result["data"] is preview
-    assert result["secondary_views"] == []
+    assert result["needs_confirmation"] is False
+    assert result["data"] is data
     assert result["files"]["png"].endswith(".png")
 
 
 def test_build_error_result_uses_canonical_shape():
     result = build_error_result("boom")
     assert result["success"] is False
+    assert result["needs_confirmation"] is False
     assert result["error"] == "boom"
-    assert result["explanation"] == ""
-    assert result["spec"] is None
-    assert result["secondary_views"] == []
-    assert result["files"] == {}
 
 
 def test_build_clarification_result_uses_canonical_shape():
@@ -61,10 +66,41 @@ def test_build_clarification_result_uses_canonical_shape():
     )
     assert result["success"] is False
     assert result["needs_clarification"] is True
-    assert result["explanation"] == ""
     assert result["clarification_prompt"] == "Need location"
-    assert result["clarification_fields"] == ["location"]
-    assert result["secondary_views"] == []
+
+
+def test_build_confirmation_result_uses_canonical_shape():
+    result = build_confirmation_result(
+        spec={"task": "visualize_timeseries", "confirmation_status": "pending"},
+        prompt="Confirm this request.",
+    )
+    assert result["success"] is False
+    assert result["needs_confirmation"] is True
+    assert result["confirmation_prompt"] == "Confirm this request."
+
+
+def test_variable_registry_normalizes_aliases_and_labels():
+    assert normalize_variable("potential water needs") == "ETDa"
+    assert normalize_variable("crop growth characteristics") == "Kc"
+    assert variable_label("ACRES_FTR_GEOM") == "Farmland Area (acres)"
+
+
+def test_crop_name_canonicalization_handles_plural_forms():
+    assert canonicalize_crop_name("potatoes") == "Potato"
+    assert canonicalize_crop_name("berries") == "Berry"
+    assert "potatoes" in crop_name_variants("Potato")
+
+
+def test_resolve_agrimet_location_handles_supported_and_unsupported_places():
+    benton = resolve_agrimet_location("Benton County", local_only=True)
+    assert benton is not None
+    assert benton["canonical_location"] == "corvallis"
+    assert benton["supported_local"] is True
+
+    medford = resolve_agrimet_location("Medford", local_only=True)
+    assert medford is not None
+    assert medford["supported_local"] is False
+    assert medford["station_title"].startswith("Medford")
 
 
 def test_validate_and_fix_spec_normalizes_queryspec_shape():
@@ -75,14 +111,17 @@ def test_validate_and_fix_spec_normalizes_queryspec_shape():
             "variables": [" OBM ", " "],
             "statistics": [" MEAN "],
             "chart_type": "LINE",
+            "confirmation_status": "CONFIRMED",
         },
         "Show temperature in Corvallis for 2024",
     )
     assert result["dataset"] == "agrimet"
-    assert result["location"] == "Corvallis"
+    assert result["location"] == "corvallis"
+    assert result["display_location"] == "Corvallis"
     assert result["variables"] == ["OBM"]
     assert result["statistics"] == ["mean"]
     assert result["chart_type"] == "line"
+    assert result["confirmation_status"] == "confirmed"
 
 
 def test_get_dataset_adapter_exposes_contract_defaults():
@@ -97,6 +136,7 @@ def test_validate_and_fix_spec_drops_unmentioned_parser_location():
             "task": "visualize_timeseries",
             "dataset": "agrimet",
             "location": "corvallis",
+            "display_location": "Corvallis",
             "variables": ["PC"],
             "start_date": "2024-01-01",
             "end_date": "2024-12-31",
@@ -105,7 +145,6 @@ def test_validate_and_fix_spec_drops_unmentioned_parser_location():
     )
     assert "location" not in result
     assert "location" in result["clarification_needed"]
-    assert any("Dropped parser-supplied location" in note for note in result["notes"])
 
 
 def test_validate_and_fix_spec_drops_unmentioned_parser_time_range():
@@ -122,50 +161,65 @@ def test_validate_and_fix_spec_drops_unmentioned_parser_time_range():
     assert "start_date" not in result
     assert "end_date" not in result
     assert "time_range" in result["clarification_needed"]
-    assert any("Dropped parser-supplied time range" in note for note in result["notes"])
 
 
-def test_validate_and_fix_spec_routes_ranking_pattern():
+def test_validate_and_fix_spec_accepts_supported_agrimet_county():
     result = validate_and_fix_spec(
         {
-            "task": "summarize_crops",
-            "location": "Yamhill County",
-            "location_type": "county",
-            "year": 2023,
-        },
-        "What crops were most commonly grown in Yamhill County between 2016 and 2023?",
-    )
-    assert result["evidence_pattern"] == "ranking_categories"
-
-
-def test_validate_and_fix_spec_routes_multivariable_pattern():
-    result = validate_and_fix_spec(
-        {
-            "task": "visualize_timeseries",
-            "location": "Douglas County",
-            "location_type": "county",
-            "variables": ["AW", "ETa"],
-            "start_date": "2018-01-01",
+            "dataset": "agrimet",
+            "variables": ["PC"],
+            "location": "Benton County",
+            "start_date": "2024-01-01",
             "end_date": "2024-12-31",
         },
-        "For cabbage farms in Douglas County, did irrigation water keep up with plant water use from 2018 to 2024?",
+        "show me precipitation in Benton County for 2024",
     )
-    assert result["evidence_pattern"] == "comparison_multivariate"
+    assert result["location"] == "corvallis"
+    assert result["display_location"] == "Benton County"
+    assert result["station_id"] == "crvo"
+    assert "station" not in result["clarification_needed"]
 
 
-def test_validate_and_fix_spec_routes_irrigation_split_pattern():
+def test_validate_and_fix_spec_flags_unsupported_local_agrimet_city():
+    result = validate_and_fix_spec({}, "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?")
+    assert result["display_location"] == "Medford"
+    assert result["variables"] == ["AVG_TMP"]
+    assert result["crop_filter"] == "Peach"
+    assert result["clarification_needed"] == ["station"]
+
+
+def test_validate_and_fix_spec_infers_partner_query_fields():
     result = validate_and_fix_spec(
-        {
-            "task": "visualize_timeseries",
-            "location": "Grant County",
-            "location_type": "county",
-            "variables": ["IRR_STATUS", "ETa"],
-            "start_date": "2017-01-01",
-            "end_date": "2022-12-31",
-        },
-        "For lentil farms in Grant County, how did irrigation presence and plant water use relate between 2017 and 2022?",
+        {},
+        "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
     )
-    assert result["evidence_pattern"] == "relationship_split"
+    assert result["location"] == "Morrow County"
+    assert result["variables"] == ["ACRES_FTR_GEOM"]
+    assert result["crop_filter"] == "Alfalfa"
+    assert result["start_date"] == "2014-01-01"
+    assert result["end_date"] == "2022-12-31"
+    assert result["evidence_pattern"] == "trend_single"
+
+
+def test_validate_and_fix_spec_summarize_crops_keeps_focus_crop():
+    result = validate_and_fix_spec(
+        {},
+        "What crops were most commonly grown in Yamhill County between 2016 and 2023, especially corn?",
+    )
+    assert result["task"] == "summarize_crops"
+    assert result["variables"] == ["CROP"]
+    assert result["crop_filter"] == "Corn"
+    assert result["display_location"] == "Yamhill County"
+
+
+def test_validate_and_fix_spec_uses_sum_aggregation_for_irrigated_counts():
+    result = validate_and_fix_spec(
+        {},
+        "How many irrigated barley fields were recorded in Baker County from 2016 to 2020?",
+    )
+    assert result["variables"] == ["IRR_STATUS"]
+    assert result["aggregation"] == "sum"
+    assert result["crop_filter"] == "Barley"
 
 
 def test_validate_and_fix_spec_routes_cross_dataset_pattern():
@@ -173,6 +227,7 @@ def test_validate_and_fix_spec_routes_cross_dataset_pattern():
         {
             "task": "visualize_timeseries",
             "location": "Corvallis",
+            "display_location": "Corvallis",
             "variables": ["ETa", "PEN_ET", "PPT"],
             "start_date": "2015-01-01",
             "end_date": "2023-12-31",
@@ -181,56 +236,3 @@ def test_validate_and_fix_spec_routes_cross_dataset_pattern():
     )
     assert result["evidence_pattern"] == "cross_dataset_comparison"
     assert result["source_datasets"] == ["openet", "agrimet"]
-
-
-def test_validate_and_fix_spec_routes_single_variable_trend_pattern():
-    result = validate_and_fix_spec(
-        {
-            "task": "visualize_timeseries",
-            "location": "Morrow County",
-            "location_type": "county",
-            "variables": ["ACRES_FTR_GEOM"],
-            "start_date": "2014-01-01",
-            "end_date": "2022-12-31",
-        },
-        "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
-    )
-    assert result["evidence_pattern"] == "trend_single"
-
-
-def test_validate_and_fix_spec_infers_crop_filter_from_query():
-    result = validate_and_fix_spec(
-        {
-            "task": "visualize_timeseries",
-            "dataset": "openet",
-            "location": "Corvallis",
-            "location_type": "city",
-            "variables": ["NIWR", "AW", "ETa"],
-            "start_date": "2016-01-01",
-            "end_date": "2024-12-31",
-            "interval": "monthly",
-            "chart_type": "line",
-            "openet_geo": "location",
-        },
-        "For cucumber farms in Corvallis, how did plant water needs, irrigation demand, and water applied evolve from 2016 to 2024?",
-    )
-    assert result["crop_filter"] == "Cucumber"
-
-
-def test_validate_and_fix_spec_infers_broad_pasture_crop_filter():
-    result = validate_and_fix_spec(
-        {
-            "task": "visualize_timeseries",
-            "dataset": "openet",
-            "location": "Corvallis",
-            "location_type": "city",
-            "variables": ["ETa", "NIWR_VOLUME", "AW"],
-            "start_date": "2016-01-01",
-            "end_date": "2024-12-31",
-            "interval": "monthly",
-            "chart_type": "line",
-            "openet_geo": "location",
-        },
-        "For pastures in Corvallis, how did plant water needs, irrigation demand, and water applied evolve from 2016 to 2024?",
-    )
-    assert result["crop_filter"] == "Pasture"

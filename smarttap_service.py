@@ -17,16 +17,25 @@ import pandas as pd
 
 from core.contracts import (
     build_clarification_result,
+    build_confirmation_result,
     build_error_result,
     build_preview,
     build_success_result,
 )
-from core.data_fetcher import fetch_data, supported_agrimet_locations
+from core.data_fetcher import fetch_data, fetch_grouped_data, supported_agrimet_locations
 from core.location_crop_query import LocationCropQuery
 from core.validation import validate_and_fix_spec, validate_payload
 from core.explanation import build_result_explanation
 from core.variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, variable_label
-from core.visualizer import create_crop_bar_chart, create_crop_pie_chart, payload_to_df, png_bytes, vega_spec
+from core.visualizer import (
+    create_crop_bar_chart,
+    create_crop_pie_chart,
+    create_grouped_comparison_chart,
+    create_grouped_summary_chart,
+    payload_to_df,
+    png_bytes,
+    vega_spec,
+)
 from llm.interpretation import get_task_specification
 
 
@@ -61,6 +70,10 @@ def _save_bytes(path: Path, payload: bytes) -> None:
         handle.write(payload)
 
 
+def _write_text(path: Path, payload: str) -> None:
+    path.write_text(payload, encoding="utf-8")
+
+
 def _paths_with_suffix(paths: Dict[str, Path], suffix: str) -> Dict[str, Path]:
     return {
         key: value.with_name(f"{value.stem}_{suffix}{value.suffix}")
@@ -82,6 +95,7 @@ def _clean_location_name(location: str, location_type: str) -> str:
 
 
 def _build_stat_chart(variable: str, stats: Dict[str, float]) -> Dict[str, Any]:
+    label = variable_label(variable)
     values = [
         {"stat": "Mean", "value": stats["mean"]},
         {"stat": "Median", "value": stats["median"]},
@@ -90,12 +104,12 @@ def _build_stat_chart(variable: str, stats: Dict[str, float]) -> Dict[str, Any]:
     ]
     return {
         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
-        "title": f"{variable} statistical summary",
+        "title": f"{label} statistical summary",
         "data": {"values": values},
         "mark": "bar",
         "encoding": {
             "x": {"field": "stat", "type": "nominal", "title": "Statistic"},
-            "y": {"field": "value", "type": "quantitative", "title": variable},
+            "y": {"field": "value", "type": "quantitative", "title": label},
             "tooltip": [
                 {"field": "stat", "type": "nominal"},
                 {"field": "value", "type": "quantitative"},
@@ -105,12 +119,13 @@ def _build_stat_chart(variable: str, stats: Dict[str, float]) -> Dict[str, Any]:
 
 
 def _build_stat_png(variable: str, stats: Dict[str, float]) -> bytes:
+    label = variable_label(variable)
     labels = ["Mean", "Median", "Min", "Max"]
     values = [stats["mean"], stats["median"], stats["min"], stats["max"]]
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.bar(labels, values, color="#b85c38")
-    ax.set_title(f"{variable} statistical summary")
-    ax.set_ylabel(variable)
+    ax.set_title(f"{label} statistical summary")
+    ax.set_ylabel(label)
     ax.grid(axis="y", alpha=0.25)
     fig.tight_layout()
 
@@ -189,6 +204,135 @@ def _files_as_strings(paths: Dict[str, Path]) -> Dict[str, str]:
     return {key: str(value) for key, value in paths.items()}
 
 
+def _slugify(text: str) -> str:
+    cleaned = re.sub(r"[^a-z0-9]+", "_", (text or "").lower()).strip("_")
+    return cleaned or "query"
+
+
+def _resolved_display_location(spec: Dict[str, Any]) -> str:
+    return str(spec.get("display_location") or spec.get("location") or "the selected location")
+
+
+def _exact_date_range(spec: Dict[str, Any], df: pd.DataFrame | None = None) -> str:
+    if df is not None and not df.empty:
+        if "datetime" in df.columns:
+            values = pd.to_datetime(df["datetime"], errors="coerce").dropna()
+        elif isinstance(df.index, pd.DatetimeIndex):
+            values = pd.Series(df.index)
+        else:
+            values = pd.Series(dtype="datetime64[ns]")
+        if not values.empty:
+            return f"{values.min().date()} to {values.max().date()}"
+    if spec.get("start_date") and spec.get("end_date"):
+        return f"{spec['start_date']} to {spec['end_date']}"
+    if spec.get("year"):
+        return str(spec["year"])
+    return ""
+
+
+def _common_summary(spec: Dict[str, Any], variables: list[str], df: pd.DataFrame | None = None) -> Dict[str, Any]:
+    source_datasets = list(spec.get("source_datasets") or ([spec.get("dataset")] if spec.get("dataset") else []))
+    summary = {
+        "task": spec.get("task"),
+        "dataset": spec.get("dataset"),
+        "location": _resolved_display_location(spec),
+        "resolved_location": spec.get("location"),
+        "location_type": spec.get("location_type"),
+        "station_id": spec.get("station_id"),
+        "station_title": spec.get("station_title"),
+        "variables": ", ".join(variables),
+        "variables_list": variables,
+        "variable_labels": [variable_label(value) for value in variables],
+        "date_range": _exact_date_range(spec, df),
+        "source_datasets": source_datasets,
+    }
+    _set_optional(summary, "crop_filter", spec.get("crop_filter"))
+    return summary
+
+
+def _result_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    if "datetime" in df.columns:
+        return df.reset_index(drop=True)
+    if isinstance(df.index, pd.DatetimeIndex):
+        return df.reset_index()
+    return df.reset_index(drop=True)
+
+
+def _partner_results_paths(case_id: str) -> Dict[str, Path]:
+    root = Path("results") / "partner_queries" / case_id
+    root.mkdir(parents=True, exist_ok=True)
+    return {
+        "results_dir": root,
+        "prompt": root / "prompt.txt",
+        "resolved_query": root / "resolved_query.json",
+        "data": root / "data.csv",
+        "png": root / "chart.png",
+        "vega": root / "vega.json",
+        "validation": root / "validation.json",
+        "verification": root / "verification.md",
+    }
+
+
+def _verification_template(query: str, result: Dict[str, Any]) -> str:
+    spec = result.get("spec") or {}
+    summary = result.get("summary") or {}
+    lines = [
+        "# Verification Notes",
+        "",
+        f"- Prompt: {query}",
+        f"- Display location: {_resolved_display_location(spec)}",
+        f"- Variables: {', '.join(summary.get('variable_labels') or [])}",
+        f"- Date range: {summary.get('date_range') or ''}",
+        f"- Source datasets: {', '.join(summary.get('source_datasets') or [])}",
+        "",
+        "## Todd/Tarkan Review",
+        "",
+        "- Data matches expected query: ",
+        "- Chart looks correct: ",
+        "- Follow-up notes: ",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _save_partner_results(query: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    if not result.get("success") or not result.get("spec"):
+        return result
+
+    spec = result["spec"]
+    case_id = str(spec.get("partner_query_id") or _slugify(query))
+    paths = _partner_results_paths(case_id)
+    _write_text(paths["prompt"], query)
+    _save_json(paths["resolved_query"], {"prompt": query, "spec": spec, "summary": result.get("summary") or {}})
+
+    data = result.get("data")
+    if isinstance(data, pd.DataFrame):
+        _result_dataframe(data).to_csv(paths["data"], index=False)
+    if result.get("chart_bytes"):
+        _save_bytes(paths["png"], result["chart_bytes"])
+    if result.get("vega_spec") is not None:
+        _save_json(paths["vega"], result["vega_spec"])
+    if result.get("validation_report") is not None:
+        _save_json(paths["validation"], result["validation_report"])
+    _write_text(paths["verification"], _verification_template(query, result))
+
+    files = dict(result.get("files") or {})
+    files.update(
+        {
+            "results_dir": str(paths["results_dir"]),
+            "prompt": str(paths["prompt"]),
+            "resolved_query": str(paths["resolved_query"]),
+            "data": str(paths["data"]),
+            "verification": str(paths["verification"]),
+            "png": str(paths["png"]),
+            "vega": str(paths["vega"]),
+            "validation": str(paths["validation"]),
+        }
+    )
+    result["files"] = files
+    return result
+
+
 def _set_optional(summary: Dict[str, Any], key: str, value: Any) -> None:
     if value not in (None, "", [], {}):
         summary[key] = value
@@ -200,10 +344,14 @@ def _resolved_request_text(spec: Dict[str, Any]) -> str:
     if variables:
         labels = ", ".join(variable_label(variable) for variable in variables)
         parts.append(f"variables={labels}")
-    if spec.get("location"):
-        parts.append(f"location={spec['location']}")
-    if spec.get("start_date") and spec.get("end_date"):
-        parts.append(f"date_range={spec['start_date']} to {spec['end_date']}")
+    if _resolved_display_location(spec):
+        parts.append(f"location={_resolved_display_location(spec)}")
+    if spec.get("station_title") or spec.get("station_id"):
+        station_bits = " ".join(value for value in [spec.get("station_title"), f"({spec.get('station_id')})" if spec.get("station_id") else ""] if value)
+        parts.append(f"station={station_bits}")
+    date_range = _exact_date_range(spec)
+    if date_range:
+        parts.append(f"date_range={date_range}")
     if spec.get("year"):
         parts.append(f"year={spec['year']}")
     return ", ".join(parts)
@@ -235,6 +383,24 @@ def _build_clarification_prompt(spec: Dict[str, Any], fields: list[str]) -> str:
         prefix += f" Missing fields: {field_names}."
 
     return prefix
+
+
+def _build_confirmation_prompt(spec: Dict[str, Any]) -> str:
+    details = [
+        f"Variables: {', '.join(variable_label(value) for value in spec.get('variables') or [])}",
+        f"Location: {_resolved_display_location(spec)}",
+    ]
+    if spec.get("station_title") or spec.get("station_id"):
+        station_bits = " ".join(value for value in [spec.get("station_title"), f"({spec.get('station_id')})" if spec.get("station_id") else ""] if value)
+        details.append(f"Station: {station_bits}")
+    if spec.get("source_datasets"):
+        details.append(f"Sources: {', '.join(spec.get('source_datasets') or [])}")
+    date_range = _exact_date_range(spec)
+    if date_range:
+        details.append(f"Time range: {date_range}")
+    if spec.get("crop_filter"):
+        details.append(f"Crop filter: {spec['crop_filter']}")
+    return "Confirm this resolved request before SmartTap runs it:\n- " + "\n- ".join(details)
 
 
 def _extract_location_from_followup(text: str) -> str | None:
@@ -274,6 +440,7 @@ def _merge_followup_into_pending(followup_query: str, pending_spec: Dict[str, An
     location = _extract_location_from_followup(followup_query)
     if location and any(field in missing for field in ["location", "station"]):
         merged["location"] = location
+        merged["display_location"] = location
         clarified.add("location")
         missing = [field for field in missing if field not in {"location", "station"}]
 
@@ -284,6 +451,7 @@ def _merge_followup_into_pending(followup_query: str, pending_spec: Dict[str, An
         missing = [field for field in missing if field != "time_range"]
 
     merged["confirmed_fields"] = sorted(clarified)
+    merged["confirmation_status"] = "pending"
     if missing:
         merged["clarification_needed"] = missing
     else:
@@ -308,19 +476,14 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
     preview = build_preview(df)
     secondary_views = []
 
-    summary = {
-        "task": final_spec["task"],
-        "dataset": final_spec["dataset"],
-        "location": final_spec.get("location"),
-        "variables": ", ".join(variables),
-        "variables_list": variables,
-        "row_count": len(df),
-        "date_range": f"{final_spec.get('start_date')} to {final_spec.get('end_date')}",
-        "evidence_pattern": final_spec.get("evidence_pattern"),
-        "chart_package": final_spec.get("chart_package"),
-        "source_datasets": ", ".join(final_spec.get("source_datasets") or []),
-    }
-    _set_optional(summary, "crop_filter", final_spec.get("crop_filter"))
+    summary = _common_summary(final_spec, variables, _result_dataframe(df))
+    summary.update(
+        {
+            "row_count": len(df),
+            "evidence_pattern": final_spec.get("evidence_pattern"),
+            "chart_package": final_spec.get("chart_package"),
+        }
+    )
 
     if final_spec.get("evidence_pattern") == "comparison_multivariate" and len(variables) > 1:
         secondary_paths = _paths_with_suffix(paths, "comparison_summary")
@@ -351,8 +514,91 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
         summary=summary,
         explanation=explanation,
         data_preview=preview,
+        data=_result_dataframe(df),
         chart_bytes=png,
         vega_spec=vega,
+        files=_files_as_strings(paths),
+        secondary_views=secondary_views,
+        validation_report=report,
+    )
+
+
+def _run_grouped_comparison(query: str, spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
+    del query
+    payload = fetch_grouped_data(spec)
+    report = validate_payload(payload)
+    _save_json(paths["validation"], report)
+    if not report["ok"]:
+        raise SmartTapError("; ".join(report["errors"]))
+
+    final_spec = payload["spec"]
+    records = (payload.get("data") or {}).get("records") or []
+    if not records:
+        raise SmartTapError("Grouped comparison returned no records.")
+
+    df = pd.DataFrame.from_records(records)
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    df = df.dropna(subset=["datetime"])
+    if df.empty:
+        raise SmartTapError("Grouped comparison returned no valid dated rows.")
+
+    compare_by = str(final_spec.get("compare_by") or final_spec.get("split_by") or "")
+    variables = sorted(df["variable"].astype(str).unique().tolist())
+    primary_png, primary_vega = create_grouped_comparison_chart(
+        df,
+        location=_resolved_display_location(final_spec),
+        compare_by=compare_by,
+        variables=variables,
+    )
+    _save_bytes(paths["png"], primary_png)
+    _save_json(paths["vega"], primary_vega)
+
+    summary_df, summary_png, summary_vega = create_grouped_summary_chart(
+        df,
+        compare_by=compare_by,
+        aggregation=str(final_spec.get("aggregation") or "mean"),
+    )
+    secondary_paths = _paths_with_suffix(paths, "grouped_summary")
+    secondary_views = [
+        _build_secondary_view(
+            caption="This companion chart summarizes the grouped comparison across the selected categories.",
+            chart_bytes=summary_png,
+            vega=summary_vega,
+            data_preview=summary_df,
+            paths=secondary_paths,
+        )
+    ]
+
+    result_df = df[["datetime", "group", "variable", "value"]].sort_values(["datetime", "group", "variable"]).reset_index(drop=True)
+    preview = build_preview(result_df)
+    summary = _common_summary(final_spec, variables, result_df)
+    summary.update(
+        {
+            "row_count": len(df),
+            "group_count": int(df["group"].nunique()),
+            "groups": ", ".join(sorted(df["group"].astype(str).unique().tolist())),
+            "compare_by": compare_by,
+            "evidence_pattern": final_spec.get("evidence_pattern"),
+            "chart_package": final_spec.get("chart_package"),
+            "secondary_view_count": len(secondary_views),
+        }
+    )
+
+    explanation = build_result_explanation(
+        spec=final_spec,
+        df=df,
+        summary=summary,
+        vega_spec=primary_vega,
+    )
+
+    return build_success_result(
+        spec=final_spec,
+        summary=summary,
+        explanation=explanation,
+        data_preview=preview,
+        data=result_df,
+        chart_bytes=primary_png,
+        vega_spec=primary_vega,
         files=_files_as_strings(paths),
         secondary_views=secondary_views,
         validation_report=report,
@@ -394,17 +640,17 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
     _save_bytes(paths["png"], png)
     _save_json(paths["vega"], vega)
 
+    result_df = _result_dataframe(df)
     preview = build_preview(df)
-    summary = {
-        "task": final_spec["task"],
-        "dataset": final_spec["dataset"],
-        "location": final_spec.get("location"),
-        "variable": variable,
-        "evidence_pattern": final_spec.get("evidence_pattern"),
-        "chart_package": final_spec.get("chart_package"),
-        **stats,
-    }
-    _set_optional(summary, "crop_filter", final_spec.get("crop_filter"))
+    summary = _common_summary(final_spec, [variable], result_df)
+    summary.update(
+        {
+            "variable": variable,
+            "evidence_pattern": final_spec.get("evidence_pattern"),
+            "chart_package": final_spec.get("chart_package"),
+            **stats,
+        }
+    )
 
     explanation = build_result_explanation(
         spec=final_spec,
@@ -418,6 +664,7 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
         summary=summary,
         explanation=explanation,
         data_preview=preview,
+        data=result_df,
         chart_bytes=png,
         vega_spec=vega,
         files=_files_as_strings(paths),
@@ -429,6 +676,7 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
 def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
     query_system = _init_location_query()
     location = spec.get("location", "")
+    display_location = _resolved_display_location(spec)
     location_type = spec.get("location_type", "city")
     year = int(spec.get("year", 2024))
     clean_location = _clean_location_name(location, location_type)
@@ -441,7 +689,7 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
         raise SmartTapError(f"Unsupported location type: {location_type}")
 
     if df.empty:
-        raise SmartTapError(f"No crop data found for {location}.")
+        raise SmartTapError(f"No crop data found for {display_location}.")
 
     crop_summary = (
         df.groupby(["crop_name", "crop_group"])
@@ -451,14 +699,14 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
         .sort_values("Field Count", ascending=False)
     )
 
-    png, vega = create_crop_bar_chart(crop_summary, location, year, top_n=15)
+    png, vega = create_crop_bar_chart(crop_summary, display_location, year, top_n=15)
     _save_bytes(paths["png"], png)
     _save_json(paths["vega"], vega)
     secondary_views = []
 
     if spec.get("evidence_pattern") in {"ranking_categories", "distribution_categories"}:
         secondary_paths = _paths_with_suffix(paths, "distribution")
-        pie_png, pie_vega = create_crop_pie_chart(crop_summary, location, year, top_n=10)
+        pie_png, pie_vega = create_crop_pie_chart(crop_summary, display_location, year, top_n=10)
         secondary_views.append(
             _build_secondary_view(
                 caption="This companion chart shows the crop-group mix for the same location and year.",
@@ -469,18 +717,17 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
             )
         )
 
-    summary = {
-        "task": spec["task"],
-        "dataset": "openet",
-        "location": location,
-        "location_type": location_type,
-        "year": year,
-        "total_fields": int(len(df)),
-        "total_crops": int(len(crop_summary)),
-        "evidence_pattern": spec.get("evidence_pattern"),
-        "chart_package": spec.get("chart_package"),
-    }
-    _set_optional(summary, "crop_filter", spec.get("crop_filter"))
+    summary = _common_summary(spec, list(spec.get("variables") or ["CROP"]), crop_summary)
+    summary.update(
+        {
+            "location_type": location_type,
+            "year": year,
+            "total_fields": int(len(df)),
+            "total_crops": int(len(crop_summary)),
+            "evidence_pattern": spec.get("evidence_pattern"),
+            "chart_package": spec.get("chart_package"),
+        }
+    )
 
     explanation = build_result_explanation(
         spec=spec,
@@ -489,15 +736,30 @@ def _run_crop_summary(spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str,
         vega_spec=vega,
     )
 
+    validation_report = {
+        "ok": True,
+        "errors": [],
+        "warnings": [],
+        "summary": {
+            "row_count": int(len(crop_summary)),
+            "field_count": int(len(df)),
+        },
+        "location": display_location,
+        "variables": list(spec.get("variables") or ["CROP"]),
+        "year": year,
+    }
+
     return build_success_result(
         spec=spec,
         summary=summary,
         explanation=explanation,
         data_preview=crop_summary.head(20).reset_index(drop=True),
+        data=crop_summary.reset_index(drop=True),
         chart_bytes=png,
         vega_spec=vega,
         files=_files_as_strings(paths),
         secondary_views=secondary_views,
+        validation_report=validation_report,
     )
 
 
@@ -507,6 +769,7 @@ def _run_cross_dataset_comparison(query: str, spec: Dict[str, Any], paths: Dict[
     variables = list(spec.get("variables") or [])
     dataset_payloads = []
     combined_previews = []
+    validation_reports: Dict[str, Any] = {}
 
     for index, dataset in enumerate(source_datasets):
         dataset_variables = [
@@ -527,6 +790,7 @@ def _run_cross_dataset_comparison(query: str, spec: Dict[str, Any], paths: Dict[
         dataset_paths = paths if index == 0 else _paths_with_suffix(paths, dataset)
         payload = fetch_data(dataset_spec)
         report = validate_payload(payload)
+        validation_reports[dataset] = report
         _save_json(dataset_paths["validation"], report)
         if not report["ok"]:
             raise SmartTapError("; ".join(report["errors"]))
@@ -559,20 +823,17 @@ def _run_cross_dataset_comparison(query: str, spec: Dict[str, Any], paths: Dict[
             )
         )
 
-    summary = {
-        "task": spec["task"],
-        "dataset": primary_dataset,
-        "location": spec.get("location"),
-        "variables": ", ".join(variables),
-        "variables_list": variables,
-        "row_count": sum(len(df) for _, _, df, _, _, _, _, _ in dataset_payloads),
-        "date_range": f"{spec.get('start_date')} to {spec.get('end_date')}",
-        "evidence_pattern": spec.get("evidence_pattern"),
-        "chart_package": spec.get("chart_package"),
-        "source_datasets": ", ".join(source_datasets),
-        "secondary_view_count": len(secondary_views),
-    }
-    _set_optional(summary, "crop_filter", spec.get("crop_filter"))
+    combined_preview = pd.concat(combined_previews, ignore_index=True) if combined_previews else primary_preview
+    summary = _common_summary(spec, variables, combined_preview if not combined_preview.empty else _result_dataframe(primary_df))
+    summary.update(
+        {
+            "dataset": primary_dataset,
+            "row_count": sum(len(df) for _, _, df, _, _, _, _, _ in dataset_payloads),
+            "evidence_pattern": spec.get("evidence_pattern"),
+            "chart_package": spec.get("chart_package"),
+            "secondary_view_count": len(secondary_views),
+        }
+    )
 
     explanation = build_result_explanation(
         spec=spec,
@@ -581,16 +842,32 @@ def _run_cross_dataset_comparison(query: str, spec: Dict[str, Any], paths: Dict[
         vega_spec=primary_vega,
     )
 
-    combined_preview = pd.concat(combined_previews, ignore_index=True) if combined_previews else primary_preview
+    validation_report = {
+        "ok": all(report.get("ok", False) for report in validation_reports.values()),
+        "errors": [
+            error
+            for report in validation_reports.values()
+            for error in report.get("errors", [])
+        ],
+        "warnings": [
+            warning
+            for report in validation_reports.values()
+            for warning in report.get("warnings", [])
+        ],
+        "datasets": validation_reports,
+    }
+
     return build_success_result(
         spec=spec,
         summary=summary,
         explanation=explanation,
         data_preview=combined_preview,
+        data=combined_preview,
         chart_bytes=primary_png,
         vega_spec=primary_vega,
         files=_files_as_strings(primary_paths),
         secondary_views=secondary_views,
+        validation_report=validation_report,
     )
 
 
@@ -610,18 +887,28 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
                 fields=clarification_fields,
             )
 
+        if fixed_spec.get("confirmation_status") != "confirmed":
+            fixed_spec["confirmation_status"] = "pending"
+            return build_confirmation_result(
+                spec=fixed_spec,
+                prompt=_build_confirmation_prompt(fixed_spec),
+            )
+
         task = fixed_spec["task"]
         paths = _output_paths(_base_name())
 
         if fixed_spec.get("evidence_pattern") == "cross_dataset_comparison":
-            return _run_cross_dataset_comparison(query, fixed_spec, paths)
+            return _save_partner_results(query, _run_cross_dataset_comparison(query, fixed_spec, paths))
+
+        if fixed_spec.get("evidence_pattern") == "comparison_grouped":
+            return _save_partner_results(query, _run_grouped_comparison(query, fixed_spec, paths))
 
         if task == "visualize_timeseries":
-            return _run_visualization_task(query, fixed_spec, paths)
+            return _save_partner_results(query, _run_visualization_task(query, fixed_spec, paths))
         if task == "statistical_summary":
-            return _run_statistical_summary(query, fixed_spec, paths)
+            return _save_partner_results(query, _run_statistical_summary(query, fixed_spec, paths))
         if task == "summarize_crops":
-            return _run_crop_summary(fixed_spec, paths)
+            return _save_partner_results(query, _run_crop_summary(fixed_spec, paths))
 
         return build_error_result(f"Unsupported task: {task}")
     except SmartTapError as exc:
@@ -649,3 +936,13 @@ def process_clarification_reply(
         )
 
     return process_query(original_query, spec=fixed_spec)
+
+
+def confirm_query(
+    *,
+    pending_spec: Dict[str, Any],
+    original_query: str,
+) -> Dict[str, Any]:
+    confirmed_spec = dict(pending_spec)
+    confirmed_spec["confirmation_status"] = "confirmed"
+    return process_query(original_query, spec=confirmed_spec)

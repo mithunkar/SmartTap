@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 
 from .config import get_model_name
+from core.variable_registry import variables_for_dataset
 
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
@@ -49,7 +50,8 @@ def build_agrimet_location_guidance() -> str:
     examples = ", ".join(["corvallis", "pendleton", "hood river", "klamath falls", "ontario"])
     return (
         "For AgriMet queries:\n"
-        "- Accept location as station/city name.\n"
+        "- Accept location as station name, city name, or county name.\n"
+        "- County mentions should be preserved as the user said them; downstream resolution maps supported counties to local AgriMet stations.\n"
         "- Use the local Oregon station set when the query is weather-focused.\n"
         f"- Common local examples: {examples}"
     )
@@ -60,10 +62,14 @@ def get_task_specification(user_query: str):
     last_year = int(today.split("-")[0]) - 1
     variable_keywords, _ = load_keyword_mappings()
     variable_hints = []
-    for variable, info in variable_keywords.items():
-        keywords = ", ".join(info.get("keywords", [])[:5])
-        variable_hints.append(f"- {variable} ({info.get('variable_name', '')}): {keywords}")
-    variable_section = "\n".join(variable_hints) if variable_hints else "- ETa: evapotranspiration\n- PPT: precipitation\n- OBM: temperature"
+    for dataset in ("openet", "agrimet"):
+        variable_hints.append(f"{dataset.upper()} variables:")
+        for metadata in variables_for_dataset(dataset):
+            fallback_keywords = ", ".join(metadata.aliases[:4])
+            configured = variable_keywords.get(metadata.code, {})
+            keywords = ", ".join(configured.get("keywords", [])[:5]) or fallback_keywords
+            variable_hints.append(f"- {metadata.code} ({metadata.label}): {keywords}")
+    variable_section = "\n".join(variable_hints)
 
     prompt_template = load_prompt_template("interpretation") or "You convert agricultural questions into valid JSON."
     system_prompt = prompt_template.format(

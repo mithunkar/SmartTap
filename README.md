@@ -20,6 +20,21 @@ Its main job is to help a user investigate a question by returning useful visual
   - OpenET field and crop data from local GeoPackages
   - AgriMet weather data from local CSVs
 
+SmartTap also now carries a canonical evidence-pattern taxonomy so routing, explanation text, tests, and docs use one shared vocabulary:
+
+- Core supported patterns:
+  - `trend_single`
+  - `stat_snapshot`
+  - `ranking_categories`
+  - `distribution_categories`
+  - `comparison_multivariate`
+  - `cross_dataset_comparison`
+- Next-step canonical patterns:
+  - `comparison_grouped`
+  - `change_over_period`
+  - `ranking_metric`
+  - `seasonality_pattern`
+
 SmartTap no longer includes AI follow-up generation, conversational spec patching, or comparison workflows.
 
 ## Quick Start

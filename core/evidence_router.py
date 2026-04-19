@@ -7,9 +7,13 @@ from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES
 
 
 RANKING_TOKENS = ("most", "largest", "top", "common", "dominant", "rank")
-COMPARE_TOKENS = (" vs ", "versus", "compared", "compare", "keep up with", "vary", "evolve")
-RELATIONSHIP_TOKENS = ("relate", "relationship", "influence", "effect", "associated")
+COMPARE_TOKENS = (" vs ", "versus", "compared", "compare", "keep up with")
 DISTRIBUTION_TOKENS = ("share", "mix", "distribution", "percent", "portion")
+CHANGE_TOKENS = ("before and after", "difference between", "differ between", "delta", "change amount")
+CHANGE_AMOUNT_TOKENS = ("how much did", "how much has", "increase by", "decrease by")
+SEASONAL_TOKENS = ("seasonal", "seasonality", "typical annual", "annual cycle", "month of year", "which months", "monthly pattern")
+METRIC_RANKING_GROUP_TOKENS = ("crop", "crops", "county", "counties", "location", "locations", "station", "stations")
+METRIC_RANKING_VALUE_TOKENS = ("highest", "lowest", "largest", "smallest", "top", "rank")
 
 
 def detect_source_datasets(variables: List[str]) -> List[str]:
@@ -61,14 +65,34 @@ def route_evidence_pattern(spec: QuerySpec, user_query: str) -> QuerySpec:
         routed.setdefault("group_by", ["CROP"])
         return routed
 
+    if split_candidates and not secondary_variables and len(variables) == 1:
+        routed["evidence_pattern"] = "trend_single"
+        routed["chart_package"] = "single_trend"
+        return routed
+
+    if (
+        any(token in lowered for token in METRIC_RANKING_VALUE_TOKENS)
+        and any(token in lowered for token in METRIC_RANKING_GROUP_TOKENS)
+        and variables
+    ):
+        routed["evidence_pattern"] = "ranking_metric"
+        routed["chart_package"] = ["ranking_metric_bar", "ranking_metric_companion"]
+        return routed
+
     if split_candidates and secondary_variables:
-        if any(token in lowered for token in RELATIONSHIP_TOKENS):
-            routed["evidence_pattern"] = "relationship_split"
-            routed["chart_package"] = "split_comparison"
-        else:
-            routed["evidence_pattern"] = "comparison_grouped"
-            routed["chart_package"] = "grouped_comparison"
+        routed["evidence_pattern"] = "comparison_grouped"
+        routed["chart_package"] = "grouped_comparison"
         routed["compare_by"] = split_by
+        return routed
+
+    if any(token in lowered for token in SEASONAL_TOKENS):
+        routed["evidence_pattern"] = "seasonality_pattern"
+        routed["chart_package"] = ["seasonal_profile", "seasonal_companion"]
+        return routed
+
+    if any(token in lowered for token in CHANGE_TOKENS) or any(token in lowered for token in CHANGE_AMOUNT_TOKENS):
+        routed["evidence_pattern"] = "change_over_period"
+        routed["chart_package"] = ["delta_primary", "delta_companion"]
         return routed
 
     if any(token in lowered for token in RANKING_TOKENS) and ("crop" in lowered or "field" in lowered):

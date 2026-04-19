@@ -10,21 +10,17 @@ STEP 0: CLASSIFY QUERY INTENT (Choose ONE task type):
    → {{"task": "statistical_summary", "dataset": "<dataset>", "location": "<location>", ...}}
    Do NOT add start_date/end_date unless explicitly mentioned
    
-3. "compare_locations" - If query COMPARES multiple locations OR crops (not time periods):
-   Keywords: "compare", "vs", "versus", "difference between" + multiple locations/crops
-   → {{"task": "compare_locations", "compare_items": [item1, item2], "compare_type": "<locations|crops>", ...}}
-   Do NOT add start_date/end_date unless explicitly mentioned
-   
-4. "visualize_timeseries" - If query shows data WITH temporal context:
+3. "visualize_timeseries" - If query shows data WITH temporal context OR compares variables/groups/locations:
    Keywords: "over time", "trends", "changes", "from X to Y", specific dates
+   OR "compare", "vs", "versus", "difference between", "break down by", "by crop", "by irrigation method", "irrigated vs non-irrigated"
    OR verbs like "show", "display", "plot" with date context
    → {{"task": "visualize_timeseries", ...}}
-   MUST include start_date and end_date (from query or default to 2024)
+   Include start_date and end_date when explicit; otherwise default to 2024 if you need to choose a time range.
 
 INTENT DECISION TREE:
 - If asking WHAT crops → summarize_crops
 - If asking HOW MUCH (no time) → statistical_summary  
-- If asking to COMPARE places → compare_locations
+- If asking to COMPARE places, crops, or irrigation groups → visualize_timeseries
 - If asking about TRENDS or has dates → visualize_timeseries
 - If ambiguous "show X" with NO time words → statistical_summary (user can ask for trends as follow-up)
 
@@ -75,7 +71,6 @@ STEP 5: Extract dates (CONDITIONAL based on task type)
 
 For "summarize_crops": Only extract year (2015-2024), default 2024
 For "statistical_summary": Only add dates if explicitly mentioned, otherwise omit
-For "compare_locations": Only add dates if explicitly mentioned, otherwise omit  
 For "visualize_timeseries": REQUIRED - MUST include start_date and end_date
 
 Date extraction rules:
@@ -95,11 +90,7 @@ FORMAT 2 - Statistical Summary (NO dates unless specified):
 {{"task": "statistical_summary", "dataset": "<agrimet|openet>", "location": "<location>", "location_type": "<city|county>", "variables": ["<VAR>"], "statistics": ["mean"]}}
 Add "crop_filter" if crop mentioned. Add dates only if explicitly in query.
 
-FORMAT 3 - Compare Locations (NO dates unless specified):
-{{"task": "compare_locations", "dataset": "<agrimet|openet>", "compare_items": ["<item1>", "<item2>"], "compare_type": "locations", "variables": ["<VAR>"]}}
-Add "location_type" and dates only if explicitly mentioned.
-
-FORMAT 4 - Visualize Timeseries (dates REQUIRED):
+FORMAT 3 - Visualize Timeseries:
 AgriMet: {{"task": "visualize_timeseries", "dataset": "agrimet", "location": "<location>", "variables": ["<VAR>"], "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "interval": "daily", "chart_type": "line"}}
 OpenET: {{"task": "visualize_timeseries", "dataset": "openet", "openet_geo": "location", "location": "<location>", "location_type": "<city|county>", "variables": ["<VAR>"], "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "interval": "monthly", "chart_type": "line"}}
 
@@ -119,15 +110,24 @@ Result: {{"task": "statistical_summary", "dataset": "openet", "location": "Hermi
 Query: "Total precipitation in Benton County"
 Result: {{"task": "statistical_summary", "dataset": "openet", "location": "Benton", "location_type": "county", "variables": ["PPT"], "statistics": ["sum"]}}
 
-COMPARE LOCATIONS (no dates unless specified):
+COMPARISON AND GROUPED VIEWS:
 Query: "Compare ETa in Corvallis vs Hood River"
-Result: {{"task": "compare_locations", "dataset": "openet", "compare_items": ["Corvallis", "Hood River"], "compare_type": "locations", "location_type": "city", "variables": ["ETa"]}}
+Result: {{"task": "visualize_timeseries", "dataset": "openet", "openet_geo": "location", "location": "Corvallis", "location_type": "city", "variables": ["ETa"], "start_date": "2024-01-01", "end_date": "2024-12-31", "interval": "monthly", "chart_type": "line"}}
 
 Query: "Compare temperature between Corvallis and Pendleton"
-Result: {{"task": "compare_locations", "dataset": "agrimet", "compare_items": ["Corvallis", "Pendleton"], "compare_type": "locations", "variables": ["OBM"]}}
+Result: {{"task": "visualize_timeseries", "dataset": "agrimet", "location": "Corvallis", "variables": ["OBM"], "start_date": "2024-01-01", "end_date": "2024-12-31", "interval": "daily", "chart_type": "line"}}
 
 Query: "Difference between wheat and alfalfa water use in Hermiston"
-Result: {{"task": "compare_locations", "dataset": "openet", "location": "Hermiston", "location_type": "city", "compare_items": ["wheat", "alfalfa"], "compare_type": "crops", "variables": ["AW"]}}
+Result: {{"task": "visualize_timeseries", "dataset": "openet", "openet_geo": "location", "location": "Hermiston", "location_type": "city", "crop_filter": "wheat", "variables": ["AW"], "start_date": "2024-01-01", "end_date": "2024-12-31", "interval": "monthly", "chart_type": "line"}}
+
+Query: "Compare ETa for irrigated vs non-irrigated lentil fields in Grant County"
+Result: {{"task": "visualize_timeseries", "dataset": "openet", "openet_geo": "location", "location": "Grant County", "location_type": "county", "crop_filter": "lentil", "variables": ["ETa", "IRR_STATUS"], "start_date": "2024-01-01", "end_date": "2024-12-31", "interval": "monthly", "chart_type": "line"}}
+
+Query: "Which irrigation systems showed the best efficiency for cotton farms in Polk County?"
+Result: {{"task": "visualize_timeseries", "dataset": "openet", "openet_geo": "location", "location": "Polk County", "location_type": "county", "crop_filter": "cotton", "variables": ["IRR_EFF", "ITYPE"], "start_date": "2024-01-01", "end_date": "2024-12-31", "interval": "monthly", "chart_type": "line"}}
+
+Query: "Show applied water by crop in Malheur County."
+Result: {{"task": "visualize_timeseries", "dataset": "openet", "openet_geo": "location", "location": "Malheur County", "location_type": "county", "variables": ["AW", "CROP"], "start_date": "2024-01-01", "end_date": "2024-12-31", "interval": "monthly", "chart_type": "line"}}
 
 VISUALIZE TIMESERIES (dates required):
 Query: "Show ETa trends in Corvallis"

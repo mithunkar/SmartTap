@@ -11,7 +11,7 @@ ExplanationBuilder = Callable[[Dict[str, Any], pd.DataFrame | None, Dict[str, An
 
 
 def _format_location(spec: Dict[str, Any]) -> str:
-    location = spec.get("location")
+    location = spec.get("display_location") or spec.get("location")
     if not location:
         return "the selected location"
     return str(location)
@@ -185,8 +185,9 @@ def _build_grouped_explanation(
     variables = _join_labels(list(spec.get("variables") or summary.get("variables_list") or []))
     location = _format_location(spec)
     scope_prefix = _format_scope_prefix(spec)
+    date_range = _format_date_range(spec)
     return (
-        f"This chart package helps compare {variables}{scope_prefix} in {location} by {variable_label(str(split_by)) if split_by else 'group'}. "
+        f"This chart package helps compare {variables}{scope_prefix} in {location}{(' ' + date_range) if date_range else ''} by {variable_label(str(split_by)) if split_by else 'group'}. "
         "Use the grouped view and companion details to see how the selected measure differs across categories."
     )
 
@@ -248,11 +249,13 @@ EXPLANATION_BUILDERS: Dict[str, ExplanationBuilder] = {
     "trend_single": _build_timeseries_explanation,
     "ranking_categories": _build_crop_summary_explanation,
     "distribution_categories": _build_crop_summary_explanation,
+    "ranking_metric": _build_grouped_explanation,
     "comparison_multivariate": _build_comparison_explanation,
     "comparison_grouped": _build_grouped_explanation,
-    "relationship_split": _build_grouped_explanation,
     "cross_dataset_comparison": _build_cross_dataset_explanation,
     "stat_snapshot": _build_statistical_explanation,
+    "change_over_period": _build_timeseries_explanation,
+    "seasonality_pattern": _build_timeseries_explanation,
 }
 
 

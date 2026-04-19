@@ -9,15 +9,18 @@ import pandas as pd
 TaskName = Literal["visualize_timeseries", "statistical_summary", "summarize_crops"]
 DatasetName = Literal["agrimet", "openet"]
 LocationType = Literal["city", "county", "station"]
+ConfirmationStatus = Literal["pending", "confirmed"]
 EvidencePattern = Literal[
     "trend_single",
     "ranking_categories",
     "distribution_categories",
+    "ranking_metric",
     "comparison_multivariate",
     "comparison_grouped",
-    "relationship_split",
     "cross_dataset_comparison",
     "stat_snapshot",
+    "change_over_period",
+    "seasonality_pattern",
 ]
 
 
@@ -27,8 +30,10 @@ class QuerySpec(TypedDict, total=False):
     task: TaskName
     dataset: DatasetName
     location: str
+    display_location: str
     location_type: LocationType
     station_id: str
+    station_title: str
     variables: List[str]
     start_date: str
     end_date: str
@@ -50,6 +55,7 @@ class QuerySpec(TypedDict, total=False):
     huc8_code: str
     clarification_needed: List[str]
     confirmed_fields: List[str]
+    confirmation_status: ConfirmationStatus
     notes: List[str]
 
 
@@ -57,6 +63,11 @@ class VisualizationFiles(TypedDict, total=False):
     png: str
     vega: str
     validation: str
+    prompt: str
+    resolved_query: str
+    data: str
+    verification: str
+    results_dir: str
 
 
 class SecondaryView(TypedDict, total=False):
@@ -72,6 +83,7 @@ class VisualizationResult(TypedDict):
 
     success: bool
     needs_clarification: bool
+    needs_confirmation: bool
     error: str | None
     spec: QuerySpec | None
     summary: Dict[str, Any]
@@ -84,6 +96,7 @@ class VisualizationResult(TypedDict):
     files: VisualizationFiles
     validation_report: Dict[str, Any] | None
     clarification_prompt: str | None
+    confirmation_prompt: str | None
     clarification_fields: List[str]
 
 
@@ -132,24 +145,27 @@ def build_success_result(
     chart_bytes: bytes,
     vega_spec: Dict[str, Any],
     files: VisualizationFiles,
+    data: pd.DataFrame | None = None,
     secondary_views: List[SecondaryView] | None = None,
     validation_report: Dict[str, Any] | None = None,
 ) -> VisualizationResult:
     return {
         "success": True,
         "needs_clarification": False,
+        "needs_confirmation": False,
         "error": None,
         "spec": spec,
         "summary": summary,
         "explanation": explanation,
         "data_preview": data_preview,
-        "data": data_preview,
+        "data": data if data is not None else data_preview,
         "chart_bytes": chart_bytes,
         "vega_spec": vega_spec,
         "secondary_views": secondary_views or [],
         "files": files,
         "validation_report": validation_report,
         "clarification_prompt": None,
+        "confirmation_prompt": None,
         "clarification_fields": [],
     }
 
@@ -158,6 +174,7 @@ def build_error_result(message: str) -> VisualizationResult:
     return {
         "success": False,
         "needs_clarification": False,
+        "needs_confirmation": False,
         "error": message,
         "spec": None,
         "summary": {},
@@ -170,6 +187,7 @@ def build_error_result(message: str) -> VisualizationResult:
         "files": {},
         "validation_report": None,
         "clarification_prompt": None,
+        "confirmation_prompt": None,
         "clarification_fields": [],
     }
 
@@ -183,6 +201,7 @@ def build_clarification_result(
     return {
         "success": False,
         "needs_clarification": True,
+        "needs_confirmation": False,
         "error": None,
         "spec": spec,
         "summary": {"status": "clarification_needed"},
@@ -195,5 +214,32 @@ def build_clarification_result(
         "files": {},
         "validation_report": None,
         "clarification_prompt": prompt,
+        "confirmation_prompt": None,
         "clarification_fields": fields,
+    }
+
+
+def build_confirmation_result(
+    *,
+    spec: QuerySpec,
+    prompt: str,
+) -> VisualizationResult:
+    return {
+        "success": False,
+        "needs_clarification": False,
+        "needs_confirmation": True,
+        "error": None,
+        "spec": spec,
+        "summary": {"status": "confirmation_needed"},
+        "explanation": "",
+        "data_preview": None,
+        "data": None,
+        "chart_bytes": None,
+        "vega_spec": None,
+        "secondary_views": [],
+        "files": {},
+        "validation_report": None,
+        "clarification_prompt": None,
+        "confirmation_prompt": prompt,
+        "clarification_fields": [],
     }

@@ -14,6 +14,10 @@ def main() -> int:
     query = sys.argv[1]
     result = process_query(query)
 
+    if result.get("needs_confirmation"):
+        print(result["confirmation_prompt"])
+        return 0
+
     if not result["success"]:
         print(f"Error: {result['error']}")
         return 1

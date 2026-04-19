@@ -1,0 +1,123 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Top 15 Crops in Morrow County (2024)",
+  "width": 600,
+  "height": 400,
+  "data": {
+    "values": [
+      {
+        "Crop": "Sod/Grass Seed",
+        "Group": "Hay/Forage",
+        "Field Count": 40
+      },
+      {
+        "Crop": "Sweet Corn",
+        "Group": "Row Crop",
+        "Field Count": 40
+      },
+      {
+        "Crop": "Spring Wheat",
+        "Group": "Grain",
+        "Field Count": 40
+      },
+      {
+        "Crop": "Onions",
+        "Group": "Vegetable",
+        "Field Count": 71
+      },
+      {
+        "Crop": "Grapes",
+        "Group": "Vineyard",
+        "Field Count": 71
+      },
+      {
+        "Crop": "Apples",
+        "Group": "Tree Fruit",
+        "Field Count": 75
+      },
+      {
+        "Crop": "Developed/Low Intensity",
+        "Group": "Developed",
+        "Field Count": 96
+      },
+      {
+        "Crop": "Potatoes",
+        "Group": "Row Crop",
+        "Field Count": 197
+      },
+      {
+        "Crop": "Developed/Open Space",
+        "Group": "Developed",
+        "Field Count": 285
+      },
+      {
+        "Crop": "Corn",
+        "Group": "Row Crop",
+        "Field Count": 377
+      },
+      {
+        "Crop": "Fallow/Idle Cropland",
+        "Group": "Fallow",
+        "Field Count": 569
+      },
+      {
+        "Crop": "Alfalfa",
+        "Group": "Hay/Forage",
+        "Field Count": 592
+      },
+      {
+        "Crop": "Grassland/Pasture",
+        "Group": "Pasture/Range",
+        "Field Count": 646
+      },
+      {
+        "Crop": "Winter Wheat",
+        "Group": "Grain",
+        "Field Count": 716
+      },
+      {
+        "Crop": "Shrubland",
+        "Group": "Rangeland",
+        "Field Count": 859
+      }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "y": {
+      "field": "Crop",
+      "type": "nominal",
+      "sort": "-x",
+      "title": null
+    },
+    "x": {
+      "field": "Field Count",
+      "type": "quantitative",
+      "title": "Number of Fields"
+    },
+    "color": {
+      "field": "Group",
+      "type": "nominal",
+      "title": "Crop Group",
+      "scale": {
+        "scheme": "category20"
+      }
+    },
+    "tooltip": [
+      {
+        "field": "Crop",
+        "type": "nominal"
+      },
+      {
+        "field": "Group",
+        "type": "nominal",
+        "title": "Group"
+      },
+      {
+        "field": "Field Count",
+        "type": "quantitative",
+        "title": "Fields"
+      }
+    ]
+  }
+}

@@ -1,22 +1,45 @@
 from __future__ import annotations
 
+import sqlite3
 import os
 import re
-from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, cast
 
 import pandas as pd
 
-from .contracts import QuerySpec
-from .data_fetcher import supported_agrimet_locations
-from .evidence_router import detect_source_datasets, route_evidence_pattern
 from llm.keyword_matcher import match_crop_keywords
-from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES
+
+from .contracts import QuerySpec
+from .crop_utils import (
+    best_crop_keyword_match,
+    canonicalize_crop_name,
+    crop_name_variants,
+    normalize_crop_phrase,
+    normalize_free_text,
+)
+from .evidence_router import detect_source_datasets, route_evidence_pattern
+from .location_resolver import display_location_name, resolve_agrimet_location, supported_agrimet_locations
+from .variable_registry import (
+    AGRIMET_VARIABLES,
+    OPENET_VARIABLES,
+    infer_variables_from_text,
+    normalize_variable,
+)
 
 SUPPORTED_TASKS = {"visualize_timeseries", "statistical_summary", "summarize_crops"}
+ANNUAL_OPENET_VARIABLES = {
+    "AREA",
+    "ACRES_FTR_GEOM",
+    "CROP",
+    "IRR_STATUS",
+    "per_IRRIGATED",
+    "IRR_EFF",
+    "ITYPE",
+}
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 CDL_CODES_PATH = DATA_DIR / "CDL_Crop_Codes_Oregon.csv"
+FIELD_POINTS_GPKG = DATA_DIR / "field_points.gpkg"
 
 
 def _load_crop_name_candidates() -> List[str]:
@@ -36,6 +59,39 @@ def _load_crop_name_candidates() -> List[str]:
 CROP_NAME_CANDIDATES = _load_crop_name_candidates()
 
 
+def _load_openet_location_candidates() -> tuple[List[str], List[str]]:
+    if not FIELD_POINTS_GPKG.exists():
+        return [], []
+
+    conn = sqlite3.connect(FIELD_POINTS_GPKG)
+    try:
+        counties_df = pd.read_sql_query(
+            "SELECT DISTINCT County FROM field_points WHERE County IS NOT NULL AND County != '' ORDER BY County",
+            conn,
+        )
+        cities_df = pd.read_sql_query(
+            """
+            SELECT DISTINCT city_name FROM (
+                SELECT Nearest_City_1 AS city_name FROM field_points
+                UNION
+                SELECT Nearest_City_2 AS city_name FROM field_points
+            )
+            WHERE city_name IS NOT NULL AND city_name != ''
+            ORDER BY city_name
+            """,
+            conn,
+        )
+    finally:
+        conn.close()
+
+    counties = [str(value).strip() for value in counties_df["County"].dropna().tolist() if str(value).strip()]
+    cities = [str(value).split(",")[0].strip() for value in cities_df["city_name"].dropna().tolist() if str(value).strip()]
+    return counties, cities
+
+
+OPENET_COUNTIES, OPENET_CITIES = _load_openet_location_candidates()
+
+
 def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     spec = payload.get("spec", {})
     records = (payload.get("data") or {}).get("records") or []
@@ -44,7 +100,7 @@ def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "errors": [],
         "warnings": [],
         "summary": {},
-        "location": spec.get("location"),
+        "location": spec.get("display_location") or spec.get("location"),
         "variables": spec.get("variables"),
         "start_date": spec.get("start_date"),
         "end_date": spec.get("end_date"),
@@ -75,13 +131,21 @@ def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     return report
 
 
+def _extract_years(text: str) -> List[int]:
+    return [int(year) for year in re.findall(r"\b(19\d{2}|20\d{2})\b", text or "")]
+
+
 def _infer_task(spec: Dict[str, Any], user_query: str) -> str:
     if spec.get("task"):
-        return spec["task"]
+        task = str(spec["task"]).strip()
+        if task == "compare_locations":
+            return "visualize_timeseries"
+        return task
+
     lowered = (user_query or "").lower()
-    if "what crops" in lowered or "which crops" in lowered:
+    if any(token in lowered for token in ["what crops", "which crops", "most commonly grown", "most grown crops"]):
         return "summarize_crops"
-    if any(token in lowered for token in ["average", "mean", "median", "sum", "total", "minimum", "maximum"]):
+    if any(token in lowered for token in ["average", "mean", "median", "sum", "total", "minimum", "maximum"]) and not _query_mentions_time_range(user_query):
         return "statistical_summary"
     return "visualize_timeseries"
 
@@ -90,115 +154,19 @@ def _infer_location_type(spec: Dict[str, Any]) -> str:
     location_type = (spec.get("location_type") or "").lower().strip()
     if location_type:
         return location_type
-    location = (spec.get("location") or "").lower()
+    location = str(spec.get("display_location") or spec.get("location") or "").lower()
     return "county" if location.endswith(" county") else "city"
 
 
-def _normalize_free_text(value: str) -> str:
-    cleaned = re.sub(r"[^a-z0-9\s]", " ", (value or "").lower())
-    return " ".join(cleaned.split())
-
-
-def _canonicalize_crop_name(name: str) -> str:
-    cleaned = " ".join(str(name or "").strip().split())
-    if not cleaned:
-        return ""
-    lower = cleaned.lower()
-    if lower.endswith("ies") and len(cleaned) > 3:
-        cleaned = cleaned[:-3] + "y"
-    if lower.endswith("s") and not lower.endswith("ss") and len(cleaned) > 3:
-        cleaned = cleaned[:-1]
-    return cleaned.title()
-
-
-def _crop_name_variants(name: str) -> set[str]:
-    canonical = _canonicalize_crop_name(name).lower()
-    if not canonical:
-        return set()
-    variants = {canonical}
-    if canonical.endswith("y"):
-        variants.add(canonical[:-1] + "ies")
-    else:
-        variants.add(canonical + "s")
-    return variants
-
-
-def _normalize_crop_phrase(phrase: str) -> str:
-    cleaned = _canonicalize_crop_name(phrase)
-    lowered = cleaned.lower()
-    trailing_terms = (" farm", " farms", " field", " fields", " orchard", " orchards", " vineyard", " vineyards")
-    for term in trailing_terms:
-        if lowered.endswith(term):
-            cleaned = cleaned[: -len(term)].strip()
-            lowered = cleaned.lower()
-    return _canonicalize_crop_name(cleaned)
-
-
-def _normalize_keyword_crop_match(crop_name: str, user_query: str) -> str:
-    query_text = f" {_normalize_free_text(user_query)} "
-    parts = [part.strip() for part in str(crop_name).replace("-", " ").split("/") if part.strip()]
-    for part in parts:
-        for variant in _crop_name_variants(part):
-            if f" {variant} " in query_text:
-                return _canonicalize_crop_name(part)
-    return _canonicalize_crop_name(parts[-1] if parts else crop_name)
-
-
-def _infer_crop_filter(spec: Dict[str, Any], user_query: str) -> str:
-    if spec.get("crop_filter"):
-        return str(spec["crop_filter"]).strip()
-
-    lowered_query = f" {_normalize_free_text(user_query)} "
-    if not lowered_query.strip():
-        return ""
-
-    phrase_patterns = [
-        r"\bfor\s+([a-z][a-z\s\-]+?)\s+in\b",
-        r"\bfor\s+([a-z][a-z\s\-]+?)\s+(?:near|around)\b",
-        r"\b([a-z][a-z\s\-]+?)\s+(?:farm|farms|field|fields|orchard|orchards|vineyard|vineyards)\b",
-    ]
-    for pattern in phrase_patterns:
-        match = re.search(pattern, lowered_query)
-        if match:
-            candidate = _normalize_crop_phrase(match.group(1))
-            if candidate and candidate.lower() not in {"the", "all", "selected", "plant water need", "irrigation demand", "water applied"}:
-                return candidate
-
-    keyword_match = match_crop_keywords(user_query)
-    if keyword_match:
-        return _normalize_keyword_crop_match(keyword_match[1], user_query)
-
-    best_match = ""
-    best_length = 0
-    for crop_name in CROP_NAME_CANDIDATES:
-        canonical = _canonicalize_crop_name(crop_name)
-        for variant in _crop_name_variants(crop_name):
-            if f" {variant} " in lowered_query and len(variant) > best_length:
-                best_match = canonical
-                best_length = len(variant)
-
-    if best_match:
-        return best_match
-
-    farm_pattern = re.search(r"\b([a-z][a-z\s\-]+?)\s+(?:farm|farms|field|fields|orchard|orchards|vineyard|vineyards)\b", lowered_query)
-    if farm_pattern:
-        guess = _canonicalize_crop_name(farm_pattern.group(1))
-        if guess and guess not in {"irrigated", "non irrigated", "water", "crop"}:
-            return guess
-
-    return ""
-
-
 def _query_mentions_location(user_query: str, location: str) -> bool:
-    normalized_query = f" {_normalize_free_text(user_query)} "
-    normalized_location = _normalize_free_text(location)
+    normalized_query = f" {normalize_free_text(user_query)} "
+    normalized_location = normalize_free_text(location)
     if not normalized_location:
         return False
 
     candidates = {normalized_location}
     if normalized_location.endswith(" county"):
         candidates.add(normalized_location[: -len(" county")].strip())
-
     return any(f" {candidate} " in normalized_query for candidate in candidates if candidate)
 
 
@@ -233,102 +201,194 @@ def _query_mentions_time_range(user_query: str) -> bool:
     return any(token in lowered for token in time_tokens)
 
 
+def _infer_dates(spec: Dict[str, Any], user_query: str, task: str) -> Dict[str, str]:
+    if spec.get("start_date") and spec.get("end_date"):
+        return {"start_date": str(spec["start_date"]), "end_date": str(spec["end_date"])}
+    if task == "summarize_crops":
+        return {}
+
+    years = _extract_years(
+        " ".join(str(spec.get(key, "")) for key in ["year", "start_date", "end_date"]) + " " + (user_query or "")
+    )
+    if not years:
+        lowered = (user_query or "").lower()
+        if task == "visualize_timeseries" and any(
+            token in lowered for token in ["compare", "versus", " vs ", "how many", "by crop", "by irrigation", "break down by"]
+        ):
+            return {"start_date": "2024-01-01", "end_date": "2024-12-31"}
+        return {}
+
+    start_year = years[0]
+    end_year = years[-1]
+    return {
+        "start_date": str(spec.get("start_date") or f"{start_year}-01-01"),
+        "end_date": str(spec.get("end_date") or f"{end_year}-12-31"),
+    }
+
+
+def _infer_location(user_query: str) -> str:
+    county_match = re.search(r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2}\s+County)\b", user_query or "")
+    if county_match:
+        return county_match.group(1).strip()
+
+    query = user_query or ""
+    preposition_match = re.search(
+        r"\b(?:in|near|around)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b",
+        query,
+    )
+    if preposition_match:
+        candidate = preposition_match.group(1).strip()
+        normalized = normalize_free_text(candidate)
+        supported_locations = {normalize_free_text(value) for value in supported_agrimet_locations()}
+        openet_cities = {normalize_free_text(value) for value in OPENET_CITIES}
+        if normalized in supported_locations or normalized in openet_cities or candidate in {"Medford", "La Grande", "Madras", "Salem"}:
+            return candidate
+
+    return ""
+
+
+def _normalize_explicit_variables(spec: Dict[str, Any]) -> List[str]:
+    variables = []
+    for value in spec.get("variables") or []:
+        normalized = normalize_variable(str(value))
+        if normalized:
+            variables.append(normalized)
+    return variables
+
+
+def _prefer_precip_variable(user_query: str, location_type: str) -> str:
+    lowered = (user_query or "").lower()
+    if any(token in lowered for token in ["usable rain", "usable rainfall", "effective rainfall"]):
+        return "Prz"
+    if "accumul" in lowered:
+        return "24_HR_PCP" if location_type != "county" else "PPT"
+    if location_type == "county" or any(token in lowered for token in ["field", "fields", "crop", "orchard", "vineyard"]):
+        return "PPT"
+    return "PC"
+
+
+def _infer_variables(spec: Dict[str, Any], user_query: str, task: str) -> List[str]:
+    explicit = _normalize_explicit_variables(spec)
+    if explicit or task == "summarize_crops":
+        return explicit
+
+    lowered = (user_query or "").lower()
+    location_type = _infer_location_type(spec)
+    inferred = infer_variables_from_text(user_query)
+
+    if not inferred and any(token in lowered for token in ["rain", "rainfall", "precip"]):
+        inferred.append(_prefer_precip_variable(user_query, location_type))
+
+    if any(value in inferred for value in {"PC", "24_HR_PCP", "PPT"}) and any(token in lowered for token in ["rain", "precip"]):
+        preferred = _prefer_precip_variable(user_query, location_type)
+        inferred = [preferred] + [value for value in inferred if value not in {"PC", "24_HR_PCP", "PPT"}]
+
+    if "how many" in lowered and "IRR_STATUS" not in inferred and any(token in lowered for token in ["irrigated", "irrigation presence"]):
+        inferred.append("IRR_STATUS")
+
+    if "by crop" in lowered and "CROP" not in inferred:
+        inferred.append("CROP")
+    if any(token in lowered for token in ["irrigation system", "irrigation systems", "irrigation method", "irrigation methods"]) and "ITYPE" not in inferred:
+        inferred.append("ITYPE")
+    if any(token in lowered for token in ["irrigated vs", "non irrigated", "non-irrigated"]) and "IRR_STATUS" not in inferred:
+        inferred.append("IRR_STATUS")
+
+    preferred_pairs = [
+        ("per_IRRIGATED", "IRR_STATUS"),
+        ("AVG_HUM", "TU"),
+        ("AVG_TMP", "OBM"),
+        ("AV_WSPD", "WS"),
+        ("24_HR_PCP", "PC"),
+    ]
+    values = list(inferred)
+    for preferred, fallback in preferred_pairs:
+        if preferred in values and fallback in values:
+            values = [value for value in values if value != fallback]
+
+    deduped: List[str] = []
+    seen = set()
+    for value in values:
+        if value not in seen:
+            deduped.append(value)
+            seen.add(value)
+    return deduped
+
+
 def _infer_dataset(spec: Dict[str, Any], user_query: str, variables: List[str]) -> str:
     if spec.get("dataset"):
-        return str(spec["dataset"]).lower()
+        return str(spec["dataset"]).lower().strip()
     sources = detect_source_datasets(variables)
     if len(sources) == 1:
         return sources[0]
     if len(sources) > 1:
         return sources[0]
+
     lowered = (user_query or "").lower()
+    location_type = _infer_location_type(spec)
+    if location_type == "county":
+        return "openet"
     if any(variable in OPENET_VARIABLES for variable in variables):
         return "openet"
+    if any(variable in AGRIMET_VARIABLES for variable in variables):
+        return "agrimet"
     if any(token in lowered for token in ["eta", "evapotranspiration", "applied water", "irrigation", "crop", "fields"]):
         return "openet"
     return "agrimet"
 
 
-def _extract_years(text: str) -> List[int]:
-    return [int(year) for year in re.findall(r"\b(19\d{2}|20\d{2})\b", text or "")]
+def _default_interval(dataset: str, variables: List[str]) -> str:
+    if dataset == "openet" and any(variable in ANNUAL_OPENET_VARIABLES for variable in variables):
+        return "yearly"
+    return "monthly" if dataset == "openet" else "daily"
 
 
-def _infer_dates(spec: Dict[str, Any], user_query: str, task: str) -> Dict[str, str]:
-    if spec.get("start_date") and spec.get("end_date"):
-        return {"start_date": spec["start_date"], "end_date": spec["end_date"]}
+def _infer_crop_filter(spec: Dict[str, Any], user_query: str) -> str:
+    if spec.get("crop_filter"):
+        return canonicalize_crop_name(str(spec["crop_filter"]))
 
-    years = _extract_years(" ".join(str(spec.get(key, "")) for key in ["year", "start_date", "end_date"]) + " " + (user_query or ""))
-    if task == "summarize_crops":
-        return {}
-    if not years:
-        return {}
-    fallback_year = years[-1]
-    return {
-        "start_date": spec.get("start_date") or f"{fallback_year}-01-01",
-        "end_date": spec.get("end_date") or f"{fallback_year}-12-31",
-    }
+    lowered_query = f" {normalize_free_text(user_query)} "
+    if not lowered_query.strip():
+        return ""
 
+    direct_match = best_crop_keyword_match(user_query, CROP_NAME_CANDIDATES)
+    if direct_match:
+        return direct_match
 
-def _infer_variables(spec: Dict[str, Any], user_query: str, task: str) -> List[str]:
-    variables = [value for value in (spec.get("variables") or []) if isinstance(value, str)]
-    if variables or task == "summarize_crops":
-        return variables
+    def _literal_keyword_match() -> str:
+        keyword_match = match_crop_keywords(user_query)
+        if not keyword_match:
+            return ""
+        candidate = canonicalize_crop_name(keyword_match[1])
+        variants = crop_name_variants(candidate) | {normalize_free_text(candidate)}
+        if any(variant and f" {variant} " in lowered_query for variant in variants):
+            return candidate
+        return ""
 
-    lowered = (user_query or "").lower()
-    inferred: List[str] = []
+    keyword_literal = _literal_keyword_match()
+    if keyword_literal:
+        return keyword_literal
 
-    if "solar" in lowered or "radiation" in lowered:
-        inferred.append("SR")
-    if "wind" in lowered:
-        inferred.append("WS")
-    if "humidity" in lowered:
-        inferred.append("TU")
-    if "max temp" in lowered or "maximum temp" in lowered:
-        inferred.append("MX")
-    if "min temp" in lowered or "minimum temp" in lowered:
-        inferred.append("MN")
-    if "temperature" in lowered or "temp" in lowered:
-        inferred.append("OBM")
-    if "reference evapotranspiration" in lowered or "atmospheric water demand" in lowered:
-        inferred.append("PEN_ET")
-    if "rain" in lowered or "precip" in lowered:
-        inferred.append("PC")
-    if "24-hour precipitation" in lowered:
-        inferred.append("24_HR_PCP")
-    if "eta" in lowered or "evapotranspiration" in lowered:
-        inferred.append("ETa")
-    if "water demand" in lowered and "reference" in lowered:
-        inferred.append("PEN_ET")
-    if "applied water" in lowered:
-        inferred.append("AW")
-    if "irrigation demand" in lowered or "irrigation requirement" in lowered:
-        inferred.append("NIWR")
-    if "usable rain" in lowered or "root zone" in lowered:
-        inferred.append("P_rz")
-    if "irrigation efficiency" in lowered:
-        inferred.append("IRR_EFF")
-    if "irrigation system" in lowered:
-        inferred.append("ITYPE")
-    if "irrigated field" in lowered or "irrigation presence" in lowered:
-        inferred.append("IRR_STATUS")
-    if "irrigated share" in lowered or "percent irrigated" in lowered:
-        inferred.append("per_IRRIGATED")
-    if "humidity" in lowered:
-        inferred.append("AVG_HUM")
-    if "wind pattern" in lowered or "wind speed" in lowered:
-        inferred.append("AV_WSPD")
-    if "crop coefficient" in lowered or "growth characteristic" in lowered:
-        inferred.append("Kc")
-    if "crop" in lowered and any(token in lowered for token in ["which", "what", "most", "common", "largest"]):
-        inferred.append("CROP")
+    phrase_patterns = [
+        r"\bfor\s+([a-z][a-z\s\-]+?)\s+(?:farm|farms|field|fields|orchard|orchards|vineyard|vineyards|crop|crops)\b",
+        r"\bby\s+([a-z][a-z\s\-]+?)\s+(?:farm|farms|field|fields|orchard|orchards|vineyard|vineyards|crop|crops)\b",
+        r"\b(?:affecting|impacting)\s+([a-z][a-z\s\-]+?)\s+(?:farm|farms|field|fields|orchard|orchards|vineyard|vineyards|crop|crops)\b",
+        r"\bfor\s+([a-z][a-z\s\-]+?)\s+(?:near|around|in)\b",
+        r"\bespecially\s+([a-z][a-z\s\-]+)\b",
+    ]
+    for pattern in phrase_patterns:
+        match = re.search(pattern, lowered_query)
+        if match:
+            candidate = normalize_crop_phrase(match.group(1))
+            if candidate and candidate.lower() not in {"the", "all", "selected", "water", "crop"}:
+                return candidate
 
-    deduped: List[str] = []
-    seen = set()
-    for value in inferred:
-        if value not in seen:
-            deduped.append(value)
-            seen.add(value)
-    return deduped
+    farm_pattern = re.search(r"\b([a-z][a-z\s\-]+?)\s+(?:farm|farms|field|fields|orchard|orchards|vineyard|vineyards)\b", lowered_query)
+    if farm_pattern:
+        guess = canonicalize_crop_name(farm_pattern.group(1))
+        if guess and guess not in {"Irrigated", "Non Irrigated", "Water", "Crop"}:
+            return guess
+
+    return ""
 
 
 def _needs_location(spec: QuerySpec, task: str) -> bool:
@@ -351,14 +411,10 @@ def collect_clarification_fields(spec: QuerySpec) -> List[str]:
         missing.append("time_range")
     if task == "summarize_crops" and not spec.get("location"):
         missing.append("location")
-    if (
-        spec.get("dataset") == "agrimet"
-        and spec.get("location")
-        and not spec.get("station_id")
-        and os.getenv("AGRIMET_USE_API") != "1"
-    ):
-        normalized = str(spec.get("location", "")).strip().lower()
-        if normalized not in supported_agrimet_locations():
+
+    if spec.get("dataset") == "agrimet" and spec.get("location") and os.getenv("AGRIMET_USE_API") != "1":
+        resolution = resolve_agrimet_location(str(spec.get("display_location") or spec.get("location")), local_only=True)
+        if not resolution or not resolution.get("supported_local", True):
             missing.append("station")
 
     seen = set()
@@ -377,10 +433,14 @@ def _normalize_spec_shape(spec: Dict[str, Any]) -> QuerySpec:
         fixed["dataset"] = str(fixed["dataset"]).lower().strip()  # type: ignore[assignment]
     if fixed.get("location"):
         fixed["location"] = str(fixed["location"]).strip()
+    if fixed.get("display_location"):
+        fixed["display_location"] = str(fixed["display_location"]).strip()
     if fixed.get("location_type"):
         fixed["location_type"] = str(fixed["location_type"]).lower().strip()  # type: ignore[assignment]
     if fixed.get("station_id"):
         fixed["station_id"] = str(fixed["station_id"]).strip()
+    if fixed.get("station_title"):
+        fixed["station_title"] = str(fixed["station_title"]).strip()
     if fixed.get("chart_type"):
         fixed["chart_type"] = str(fixed["chart_type"]).lower().strip()
     if fixed.get("interval"):
@@ -388,16 +448,17 @@ def _normalize_spec_shape(spec: Dict[str, Any]) -> QuerySpec:
     if fixed.get("aggregation"):
         fixed["aggregation"] = str(fixed["aggregation"]).lower().strip()
     if fixed.get("crop_filter"):
-        fixed["crop_filter"] = _canonicalize_crop_name(str(fixed["crop_filter"]))
+        fixed["crop_filter"] = canonicalize_crop_name(str(fixed["crop_filter"]))
     if fixed.get("openet_geo"):
         fixed["openet_geo"] = str(fixed["openet_geo"]).lower().strip()
     if fixed.get("openet_id"):
         fixed["openet_id"] = str(fixed["openet_id"]).strip()
     if fixed.get("huc8_code"):
         fixed["huc8_code"] = str(fixed["huc8_code"]).strip()
+    if fixed.get("confirmation_status"):
+        fixed["confirmation_status"] = str(fixed["confirmation_status"]).lower().strip()  # type: ignore[assignment]
 
-    variables = fixed.get("variables") or []
-    fixed["variables"] = [str(value).strip() for value in variables if str(value).strip()]
+    fixed["variables"] = _normalize_explicit_variables(fixed)
 
     statistics = fixed.get("statistics") or []
     fixed["statistics"] = [str(value).lower().strip() for value in statistics if str(value).strip()]
@@ -412,24 +473,66 @@ def _normalize_spec_shape(spec: Dict[str, Any]) -> QuerySpec:
     fixed["notes"] = [str(value).strip() for value in notes if str(value).strip()]
 
     if fixed.get("year") is not None and str(fixed["year"]).strip():
-        fixed["year"] = int(fixed["year"])  # type: ignore[arg-type]
+        year_text = str(fixed["year"]).strip()
+        years = _extract_years(year_text)
+        if years:
+            fixed["year"] = years[-1]
+        else:
+            fixed["year"] = int(year_text)  # type: ignore[arg-type]
 
+    return fixed
+
+
+def _apply_location_resolution(fixed: QuerySpec) -> QuerySpec:
+    if not fixed.get("location"):
+        return fixed
+
+    location_type = _infer_location_type(fixed)
+    fixed["location_type"] = location_type  # type: ignore[assignment]
+    fixed["display_location"] = fixed.get("display_location") or display_location_name(str(fixed["location"]), location_type)
+
+    if fixed.get("dataset") != "agrimet":
+        fixed["display_location"] = display_location_name(str(fixed["display_location"]), location_type)
+        return fixed
+
+    local_only = os.getenv("AGRIMET_USE_API") != "1"
+    resolution = resolve_agrimet_location(str(fixed["display_location"]), local_only=local_only)
+    if not resolution:
+        return fixed
+
+    fixed["display_location"] = resolution.get("display_location") or fixed["display_location"]
+    if resolution.get("supported_local", True) or not local_only:
+        if resolution.get("canonical_location"):
+            fixed["location"] = resolution["canonical_location"]
+        if resolution.get("station_id"):
+            fixed["station_id"] = resolution["station_id"]
+        if resolution.get("station_title"):
+            fixed["station_title"] = resolution["station_title"]
+    else:
+        notes = list(fixed.get("notes") or [])
+        notes.append(
+            f"Local AgriMet data does not include {fixed['display_location']}; supported local locations: {', '.join(supported_agrimet_locations())}."
+        )
+        fixed["notes"] = notes
     return fixed
 
 
 def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, Any]:
     fixed = _normalize_spec_shape(dict(spec or {}))
     confirmed_fields = set(fixed.get("confirmed_fields") or [])
+
     if (
         fixed.get("location")
         and "location" not in confirmed_fields
-        and not _query_mentions_location(user_query, str(fixed["location"]))
+        and not _query_mentions_location(user_query, str(fixed.get("display_location") or fixed["location"]))
     ):
         fixed.pop("location", None)
+        fixed.pop("display_location", None)
         fixed.pop("station_id", None)
         notes = list(fixed.get("notes") or [])
         notes.append("Dropped parser-supplied location because it was not mentioned in the user query.")
         fixed["notes"] = notes
+
     if (
         (fixed.get("start_date") or fixed.get("end_date"))
         and "time_range" not in confirmed_fields
@@ -449,14 +552,27 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
         }
     fixed["task"] = task
 
+    if not fixed.get("location"):
+        inferred_location = _infer_location(user_query)
+        if inferred_location:
+            fixed["location"] = inferred_location
+            fixed["display_location"] = inferred_location
+
     if task == "summarize_crops":
         if not fixed.get("location"):
             fixed["clarification_needed"] = ["location"]
             return fixed
-        fixed["location_type"] = _infer_location_type(fixed)
+
         years = _extract_years(str(fixed.get("year", "")) + " " + (user_query or ""))
+        fixed["location_type"] = _infer_location_type(fixed)
+        fixed["display_location"] = fixed.get("display_location") or display_location_name(str(fixed["location"]), fixed["location_type"])
         fixed["year"] = int(fixed.get("year") or (years[-1] if years else 2024))
         fixed["dataset"] = "openet"
+        fixed["variables"] = fixed.get("variables") or ["CROP"]
+        inferred_crop = _infer_crop_filter(fixed, user_query)
+        if inferred_crop:
+            fixed["crop_filter"] = inferred_crop
+        fixed["confirmation_status"] = cast(Any, fixed.get("confirmation_status") or "pending")
         fixed["clarification_needed"] = collect_clarification_fields(fixed)
         return route_evidence_pattern(fixed, user_query)
 
@@ -464,8 +580,9 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
     if fixed["variables"]:
         fixed["dataset"] = _infer_dataset(fixed, user_query, fixed["variables"])
         fixed["location_type"] = _infer_location_type(fixed)
+        fixed = _apply_location_resolution(fixed)
         fixed["chart_type"] = fixed.get("chart_type") or "line"
-        fixed["interval"] = fixed.get("interval") or ("monthly" if fixed["dataset"] == "openet" else "daily")
+        fixed["interval"] = fixed.get("interval") or _default_interval(str(fixed["dataset"]), fixed["variables"])
         if fixed["dataset"] == "openet":
             fixed["openet_geo"] = fixed.get("openet_geo") or ("location" if fixed.get("location") else "huc8")
     else:
@@ -477,21 +594,26 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
     if task == "statistical_summary":
         fixed["statistics"] = fixed.get("statistics") or ["mean"]
 
+    if any(token in (user_query or "").lower() for token in ["how many", "number of", "count"]) and "IRR_STATUS" in (fixed.get("variables") or []):
+        fixed["aggregation"] = fixed.get("aggregation") or "sum"
+
     inferred_crop = _infer_crop_filter(fixed, user_query)
     if inferred_crop:
         fixed["crop_filter"] = inferred_crop
 
+    fixed["display_location"] = fixed.get("display_location") or (
+        display_location_name(str(fixed["location"]), fixed.get("location_type")) if fixed.get("location") else ""
+    )
+    fixed["confirmation_status"] = cast(Any, fixed.get("confirmation_status") or "pending")
     fixed["clarification_needed"] = collect_clarification_fields(fixed)
     routed = route_evidence_pattern(fixed, user_query)
 
-    if not routed.get("source_datasets") and fixed.get("dataset") in {"openet", "agrimet"}:
-        routed["source_datasets"] = [str(fixed["dataset"])]
+    if not routed.get("source_datasets") and routed.get("dataset") in {"openet", "agrimet"}:
+        routed["source_datasets"] = [str(routed["dataset"])]
 
     if not routed.get("dataset") and len(routed.get("source_datasets") or []) == 1:
         routed["dataset"] = cast(Any, routed["source_datasets"][0])
 
-    if len(routed.get("source_datasets") or []) > 1 and not routed.get("notes"):
-        routed["notes"] = []
     if len(routed.get("source_datasets") or []) > 1:
         notes = list(routed.get("notes") or [])
         notes.append("Detected variables from multiple datasets; routing as a coordinated evidence package.")

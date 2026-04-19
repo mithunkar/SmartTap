@@ -1,5 +1,6 @@
 import importlib
 import sys
+from pathlib import Path
 
 
 def test_cli_import_does_not_require_ollama():
@@ -39,3 +40,8 @@ def test_ui_display_spec_filters_internal_and_empty_fields():
     assert display["clarification_needed"] == ["time_range"]
     assert "notes" not in display
     assert "station_id" not in display
+
+
+def test_interpretation_prompt_no_longer_mentions_compare_locations():
+    prompt = (Path(__file__).resolve().parent.parent / "prompts" / "interpretation.txt").read_text()
+    assert "compare_locations" not in prompt

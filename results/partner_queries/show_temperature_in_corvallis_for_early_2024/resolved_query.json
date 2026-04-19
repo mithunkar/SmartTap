@@ -1,0 +1,54 @@
+{
+  "prompt": "Show temperature in Corvallis for early 2024",
+  "spec": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "corvallis",
+    "display_location": "Corvallis",
+    "variables": [
+      "OBM"
+    ],
+    "start_date": "2024-01-01",
+    "end_date": "2024-01-02",
+    "interval": "daily",
+    "chart_type": "line",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "location_type": "city",
+    "station_id": "crvo",
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "secondary_variables": [
+      "OBM"
+    ],
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "Corvallis",
+    "resolved_location": "corvallis",
+    "location_type": "city",
+    "station_id": "crvo",
+    "station_title": null,
+    "variables": "OBM",
+    "variables_list": [
+      "OBM"
+    ],
+    "variable_labels": [
+      "Average Temperature (deg F)"
+    ],
+    "date_range": "2024-01-01 to 2024-01-02",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "row_count": 2,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

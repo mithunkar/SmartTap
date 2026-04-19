@@ -9,6 +9,7 @@ import pandas as pd
 from .contracts import DatasetAdapter, DatasetContract, QuerySpec
 from .agrimet_api import fetch_agrimet_api_data
 from .location_crop_query import LocationCropQuery
+from .location_resolver import normalize_location_text, resolve_agrimet_location, supported_agrimet_locations
 from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable
 
 
@@ -20,8 +21,6 @@ FULL_OREGON_GPKG = DATA_DIR / "preliminary_or_field_geopackage.gpkg"
 OPENET_DIR = DATA_DIR / "openet"
 OPENET_FIELD_COMBINED = OPENET_DIR / "field_combined_long.csv"
 OPENET_HUC_COMBINED = OPENET_DIR / "huc_combined_long.csv"
-
-
 AGRIMET_FRIENDLY_NAMES = {
     "corvallis": "corvallis",
     "hood river": "hood_river",
@@ -61,18 +60,35 @@ DATASET_ADAPTERS: Dict[str, DatasetAdapter] = {
     "openet": OpenETAdapter(),
 }
 
-
-def supported_agrimet_locations() -> List[str]:
-    return sorted(AGRIMET_FRIENDLY_NAMES.keys())
+SUPPORTED_OPENET_GROUP_FIELDS = {"IRR_STATUS", "ITYPE", "CROP"}
 
 
-def _normalize_agrimet_location(location: str) -> str:
-    cleaned = (location or "").strip().lower().replace("_", " ")
-    return " ".join(cleaned.split())
+def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
+    resolved = dict(spec)
+    location = str(resolved.get("location") or "").strip()
+    if not location:
+        return resolved
+
+    use_api = os.getenv("AGRIMET_USE_API") == "1"
+    match = resolve_agrimet_location(location, local_only=not use_api)
+    if not match:
+        return resolved
+
+    if match.get("display_location") and not resolved.get("display_location"):
+        resolved["display_location"] = match["display_location"]
+    if match.get("station_id") and not resolved.get("station_id"):
+        resolved["station_id"] = match["station_id"]
+    if match.get("station_title") and not resolved.get("station_title"):
+        resolved["station_title"] = match["station_title"]
+
+    canonical_location = match.get("canonical_location")
+    if canonical_location and (match.get("supported_local", True) or use_api):
+        resolved["location"] = canonical_location
+    return resolved
 
 
 def _agrimet_file_prefix(location: str) -> str:
-    normalized = _normalize_agrimet_location(location)
+    normalized = normalize_location_text(location)
     if normalized in AGRIMET_FRIENDLY_NAMES:
         return AGRIMET_FRIENDLY_NAMES[normalized]
     available = ", ".join(sorted(AGRIMET_FRIENDLY_NAMES))
@@ -199,8 +215,9 @@ def _build_agrimet_result_frame(df: pd.DataFrame, variables: List[str]) -> pd.Da
 
 
 def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
+    spec = _normalize_agrimet_spec(spec)
     df = fetch_agrimet_api_data(
-        location=(spec.get("location") or "corvallis").lower(),
+        location=str(spec.get("station_id") or spec.get("location") or "corvallis").lower(),
         variables=spec.get("variables", []) or [],
         start_date=spec.get("start_date") or "2024-01-01",
         end_date=spec.get("end_date") or "2024-12-31",
@@ -214,6 +231,7 @@ def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
+    spec = _normalize_agrimet_spec(spec)
     use_api = os.getenv("AGRIMET_USE_API") == "1"
     if use_api:
         return _fetch_agrimet_from_api(spec)
@@ -328,6 +346,47 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     return {"spec": spec, "data": {"records": wide.to_dict(orient="records")}}
 
 
+def fetch_openet_grouped_data(spec: Dict[str, Any]) -> Dict[str, Any]:
+    location = spec.get("location")
+    location_type = (spec.get("location_type") or "city").lower().strip()
+    compare_by = str(spec.get("compare_by") or spec.get("split_by") or "").strip()
+    variables = _normalize_openet_vars(spec.get("variables") or [])
+    value_variables = [value for value in variables if value != compare_by]
+
+    if not location:
+        raise ValueError("Grouped OpenET queries require a location.")
+    if location_type not in {"city", "county"}:
+        raise ValueError(f"Grouped OpenET queries require city/county location_type, got {location_type}.")
+    if compare_by not in SUPPORTED_OPENET_GROUP_FIELDS:
+        supported = ", ".join(sorted(SUPPORTED_OPENET_GROUP_FIELDS))
+        raise ValueError(f"Unsupported grouped comparison field: {compare_by}. Supported: {supported}")
+    if not value_variables:
+        raise ValueError("Grouped OpenET queries require at least one numeric comparison variable.")
+
+    query_system = LocationCropQuery(full_oregon_gpkg=str(FULL_OREGON_GPKG))
+    frame = query_system.query_grouped_variables_by_location(
+        location=str(location),
+        location_type=location_type,
+        compare_by=compare_by,
+        variables=value_variables,
+        start_date=spec.get("start_date") or "2024-01-01",
+        end_date=spec.get("end_date") or "2024-12-31",
+        crop_filter=spec.get("crop_filter"),
+        aggregation=spec.get("aggregation", "mean"),
+    )
+    if frame.empty:
+        raise ValueError(
+            _openet_no_data_message(
+                location=str(location),
+                location_type=location_type,
+                crop_filter=str(spec.get("crop_filter")) if spec.get("crop_filter") else None,
+                start_date=str(spec.get("start_date")) if spec.get("start_date") else None,
+                end_date=str(spec.get("end_date")) if spec.get("end_date") else None,
+            )
+        )
+    return {"spec": spec, "data": {"records": frame.to_dict(orient="records")}}
+
+
 def get_dataset_adapter(dataset: str) -> DatasetAdapter:
     normalized = (dataset or "agrimet").lower().strip()
     adapter = DATASET_ADAPTERS.get(normalized)
@@ -340,3 +399,10 @@ def fetch_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     dataset = (spec.get("dataset") or "agrimet").lower().strip()
     adapter = get_dataset_adapter(dataset)
     return adapter.fetch(spec)
+
+
+def fetch_grouped_data(spec: Dict[str, Any]) -> Dict[str, Any]:
+    dataset = (spec.get("dataset") or "").lower().strip()
+    if dataset != "openet":
+        raise ValueError("Grouped comparison support is currently implemented for OpenET only.")
+    return fetch_openet_grouped_data(spec)

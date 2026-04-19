@@ -11,7 +11,7 @@ from unittest.mock import patch
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.data_fetcher import fetch_data, fetch_agrimet_data, fetch_openet_data
+from core.data_fetcher import fetch_data, fetch_agrimet_data, fetch_openet_data, resolve_agrimet_location
 
 
 class TestDataFetcher(unittest.TestCase):
@@ -76,6 +76,26 @@ class TestDataFetcher(unittest.TestCase):
         self.assertIn("OBM", first_record)
         self.assertIn("PC", first_record)
         self.assertIn("SR", first_record)
+
+    def test_agrimet_county_resolves_to_supported_local_station(self):
+        """County mentions should resolve through station metadata to a local AgriMet dataset."""
+        match = resolve_agrimet_location("Benton County", local_only=True)
+        self.assertIsNotNone(match)
+        self.assertEqual(match["canonical_location"], "corvallis")
+
+        spec = {
+            "dataset": "agrimet",
+            "location": "Benton County",
+            "variables": ["OBM"],
+            "start_date": "2020-01-01",
+            "end_date": "2020-01-03",
+            "interval": "daily",
+        }
+
+        payload = fetch_agrimet_data(spec)
+        self.assertEqual(payload["spec"]["location"], "corvallis")
+        self.assertEqual(payload["spec"]["station_id"], "crvo")
+        self.assertEqual(len(payload["data"]["records"]), 3)
     
     def test_openet_fetch(self):
         """Test OpenET data fetching (if data exists)"""

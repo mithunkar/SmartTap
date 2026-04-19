@@ -181,6 +181,165 @@ def create_crop_pie_chart(crop_summary: pd.DataFrame, location: str, year: int,
     return buf.read(), vega
 
 
+def create_grouped_comparison_chart(
+    grouped_df: pd.DataFrame,
+    *,
+    location: str,
+    compare_by: str,
+    variables: List[str],
+    title: str | None = None,
+) -> Tuple[bytes, Dict[str, Any]]:
+    data = grouped_df.copy()
+    data["datetime"] = pd.to_datetime(data["datetime"])
+    variables = variables or sorted(data["variable"].astype(str).unique().tolist())
+    resolved_title = title or f"{', '.join(variable_label(v) for v in variables)} by {variable_label(compare_by)} in {location}"
+    multi_time = data["datetime"].nunique() > 1
+
+    if multi_time:
+        if len(variables) > 1:
+            vega = {
+                "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                "title": resolved_title,
+                "data": {"values": _json_safe_records(data[["datetime", "group", "variable", "value"]])},
+                "facet": {"field": "variable", "type": "nominal", "title": "Variable"},
+                "spec": {
+                    "mark": {"type": "line", "point": True},
+                    "encoding": {
+                        "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
+                        "y": {"field": "value", "type": "quantitative", "title": "Value"},
+                        "color": {"field": "group", "type": "nominal", "title": variable_label(compare_by)},
+                        "tooltip": [
+                            {"field": "datetime", "type": "temporal"},
+                            {"field": "variable", "type": "nominal"},
+                            {"field": "group", "type": "nominal"},
+                            {"field": "value", "type": "quantitative"},
+                        ],
+                    },
+                },
+                "columns": 1,
+            }
+        else:
+            vega = {
+                "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+                "title": resolved_title,
+                "data": {"values": _json_safe_records(data[["datetime", "group", "variable", "value"]])},
+                "mark": {"type": "line", "point": True},
+                "encoding": {
+                    "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
+                    "y": {"field": "value", "type": "quantitative", "title": variable_label(variables[0])},
+                    "color": {"field": "group", "type": "nominal", "title": variable_label(compare_by)},
+                    "tooltip": [
+                        {"field": "datetime", "type": "temporal"},
+                        {"field": "group", "type": "nominal"},
+                        {"field": "value", "type": "quantitative"},
+                    ],
+                },
+            }
+    else:
+        vega = {
+            "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+            "title": resolved_title,
+            "data": {"values": _json_safe_records(data[["datetime", "group", "variable", "value"]])},
+            "mark": "bar",
+            "encoding": {
+                "x": {"field": "group", "type": "nominal", "title": variable_label(compare_by)},
+                "y": {"field": "value", "type": "quantitative", "title": "Value"},
+                "color": {"field": "variable", "type": "nominal", "title": "Variable"},
+                "tooltip": [
+                    {"field": "group", "type": "nominal"},
+                    {"field": "variable", "type": "nominal"},
+                    {"field": "value", "type": "quantitative"},
+                ],
+            },
+        }
+
+    fig = plt.figure(figsize=(10, 5.5 if len(variables) == 1 else 7.5))
+    if multi_time:
+        if len(variables) == 1:
+            ax = fig.add_subplot(111)
+            variable = variables[0]
+            for group_name, frame in data.groupby("group"):
+                ordered = frame.sort_values("datetime")
+                ax.plot(ordered["datetime"], ordered["value"], marker="o", label=str(group_name))
+            ax.set_title(resolved_title)
+            ax.set_xlabel("Date/Time")
+            ax.set_ylabel(variable_label(variable))
+            ax.legend(loc="upper left")
+            ax.grid(alpha=0.25)
+        else:
+            axes = fig.subplots(len(variables), 1, squeeze=False)
+            for index, variable in enumerate(variables):
+                ax = axes[index][0]
+                subset = data[data["variable"] == variable]
+                for group_name, frame in subset.groupby("group"):
+                    ordered = frame.sort_values("datetime")
+                    ax.plot(ordered["datetime"], ordered["value"], marker="o", label=str(group_name))
+                ax.set_ylabel(variable_label(variable))
+                ax.grid(alpha=0.25)
+                if index == 0:
+                    ax.set_title(resolved_title)
+                    ax.legend(loc="upper left")
+                if index == len(variables) - 1:
+                    ax.set_xlabel("Date/Time")
+    else:
+        ax = fig.add_subplot(111)
+        pivoted = data.pivot_table(index="group", columns="variable", values="value", aggfunc="mean").fillna(0)
+        pivoted.plot(kind="bar", ax=ax)
+        ax.set_title(resolved_title)
+        ax.set_xlabel(variable_label(compare_by))
+        ax.set_ylabel("Value")
+        ax.grid(axis="y", alpha=0.25)
+
+    fig.autofmt_xdate()
+    fig.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=160)
+    plt.close(fig)
+    return buf.getvalue(), vega
+
+
+def create_grouped_summary_chart(
+    grouped_df: pd.DataFrame,
+    *,
+    compare_by: str,
+    aggregation: str = "mean",
+    title: str | None = None,
+) -> Tuple[pd.DataFrame, bytes, Dict[str, Any]]:
+    metric_name = "sum" if aggregation == "sum" else "mean"
+    summary = grouped_df.groupby(["group", "variable"], as_index=False)["value"].agg(metric_name)
+    resolved_title = title or f"Grouped summary by {variable_label(compare_by)}"
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": resolved_title,
+        "data": {"values": summary.to_dict("records")},
+        "mark": "bar",
+        "encoding": {
+            "x": {"field": "group", "type": "nominal", "title": variable_label(compare_by)},
+            "y": {"field": "value", "type": "quantitative", "title": metric_name.title()},
+            "color": {"field": "variable", "type": "nominal", "title": "Variable"},
+            "tooltip": [
+                {"field": "group", "type": "nominal"},
+                {"field": "variable", "type": "nominal"},
+                {"field": "value", "type": "quantitative"},
+            ],
+        },
+    }
+
+    fig, ax = plt.subplots(figsize=(9, 4.8))
+    pivoted = summary.pivot_table(index="group", columns="variable", values="value", aggfunc="mean").fillna(0)
+    pivoted.plot(kind="bar", ax=ax)
+    ax.set_title(resolved_title)
+    ax.set_xlabel(variable_label(compare_by))
+    ax.set_ylabel(metric_name.title())
+    ax.grid(axis="y", alpha=0.25)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=160)
+    plt.close(fig)
+    return summary, buf.getvalue(), vega
+
+
 def _json_safe_records(df: pd.DataFrame) -> list[dict]:
     """Convert datetime-like objects into JSON-safe strings."""
     out = df.to_dict(orient="records")
@@ -261,6 +420,7 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
     spec, df, vars_ = payload_to_df(payload)
     chart_type = (spec.get("chart_type") or "line").lower()
     view = choose_view(df, vars_, chart_type)
+    display_location = spec.get("display_location") or spec.get("location", "")
 
     # Generate title based on dataset type and query mode
     if spec.get("title"):
@@ -268,7 +428,7 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
     elif spec.get("dataset") == "openet":
         # Location-based OpenET queries (new system)
         if spec.get("openet_geo") == "location" and spec.get("location"):
-            location = spec["location"]
+            location = display_location or spec["location"]
             location_type = spec.get("location_type", "area")
             
             # Add location type label
@@ -276,9 +436,9 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
             
             # Add variables to title
             if len(vars_) == 1:
-                var_label = f"{vars_[0]}"
+                var_label = variable_label(vars_[0])
             elif len(vars_) <= 3:
-                var_label = ", ".join(vars_)
+                var_label = ", ".join(variable_label(value) for value in vars_)
             else:
                 var_label = f"{len(vars_)} variables"
             
@@ -296,12 +456,12 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
             title = f"{location_name} • OpenET"
     else:
         # AgriMet or other datasets
-        location = spec.get("location", "").title()
+        location = str(display_location or spec.get("location", "")).title()
         dataset = spec.get("dataset", "").upper()
         if len(vars_) == 1:
-            title = f"{vars_[0]} in {location} ({dataset})"
+            title = f"{variable_label(vars_[0])} in {location} ({dataset})"
         elif len(vars_) <= 3:
-            var_label = ", ".join(vars_)
+            var_label = ", ".join(variable_label(value) for value in vars_)
             title = f"{var_label} in {location} ({dataset})"
         else:
             title = f"{location} • {dataset}"
@@ -410,6 +570,7 @@ def png_bytes(payload: Dict[str, Any]) -> bytes:
     spec, df, vars_ = payload_to_df(payload)
     chart_type = (spec.get("chart_type") or "line").lower()
     view = choose_view(df, vars_, chart_type)
+    display_location = spec.get("display_location") or spec.get("location", "")
 
     # Generate title based on dataset type and query mode (same logic as vega_spec)
     if spec.get("title"):
@@ -417,7 +578,7 @@ def png_bytes(payload: Dict[str, Any]) -> bytes:
     elif spec.get("dataset") == "openet":
         # Location-based OpenET queries (new system)
         if spec.get("openet_geo") == "location" and spec.get("location"):
-            location = spec["location"]
+            location = display_location or spec["location"]
             location_type = spec.get("location_type", "area")
             
             # Add location type label
@@ -425,9 +586,9 @@ def png_bytes(payload: Dict[str, Any]) -> bytes:
             
             # Add variables to title
             if len(vars_) == 1:
-                var_label = f"{vars_[0]}"
+                var_label = variable_label(vars_[0])
             elif len(vars_) <= 3:
-                var_label = ", ".join(vars_)
+                var_label = ", ".join(variable_label(value) for value in vars_)
             else:
                 var_label = f"{len(vars_)} variables"
             
@@ -445,12 +606,12 @@ def png_bytes(payload: Dict[str, Any]) -> bytes:
             title = f"{location_name} • OpenET"
     else:
         # AgriMet or other datasets
-        location = spec.get("location", "").title()
+        location = str(display_location or spec.get("location", "")).title()
         dataset = spec.get("dataset", "").upper()
         if len(vars_) == 1:
-            title = f"{vars_[0]} in {location} ({dataset})"
+            title = f"{variable_label(vars_[0])} in {location} ({dataset})"
         elif len(vars_) <= 3:
-            var_label = ", ".join(vars_)
+            var_label = ", ".join(variable_label(value) for value in vars_)
             title = f"{var_label} in {location} ({dataset})"
         else:
             title = f"{location} • {dataset}"
