@@ -100,6 +100,36 @@ def test_acceptance_confirmation_cases_generate_partner_artifacts(monkeypatch):
                 }
             )
 
+        def query_categorical_counts_by_location(
+            self,
+            *,
+            location,
+            location_type,
+            compare_by,
+            start_date,
+            end_date,
+            crop_filter=None,
+            max_distance=1,
+        ):
+            del location, location_type, compare_by, start_date, end_date, crop_filter, max_distance
+            return pd.DataFrame(
+                {
+                    "datetime": pd.to_datetime(
+                        [
+                            "2015-01-01",
+                            "2015-01-01",
+                            "2016-01-01",
+                            "2016-01-01",
+                        ]
+                    ),
+                    "group": ["ITYPE 1", "ITYPE 2", "ITYPE 1", "ITYPE 2"],
+                    "field_count": [10, 6, 12, 5],
+                    "compare_by": ["ITYPE", "ITYPE", "ITYPE", "ITYPE"],
+                    "location": ["Jefferson County"] * 4,
+                    "location_type": ["county"] * 4,
+                }
+            )
+
         def query_crops_by_county(self, clean_location, year):
             del clean_location, year
             return pd.DataFrame(

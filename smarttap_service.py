@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict
 
@@ -22,16 +22,27 @@ from core.contracts import (
     build_preview,
     build_success_result,
 )
+from core.crop_utils import best_crop_keyword_match, canonicalize_crop_name
 from core.data_fetcher import fetch_data, fetch_grouped_data, supported_agrimet_locations
 from core.location_crop_query import LocationCropQuery, normalize_county_name
-from core.validation import validate_and_fix_spec, validate_payload
+from core.validation import CROP_NAME_CANDIDATES, validate_and_fix_spec, validate_payload
 from core.explanation import build_result_explanation
-from core.variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, variable_label
+from core.variable_registry import (
+    AGRIMET_VARIABLES,
+    OPENET_VARIABLES,
+    get_variable_metadata,
+    infer_variables_from_text,
+    normalize_variable,
+    variable_label,
+)
+from llm.keyword_matcher import match_crop_keywords
 from core.visualizer import (
     create_crop_bar_chart,
     create_crop_pie_chart,
     create_grouped_comparison_chart,
     create_grouped_summary_chart,
+    create_metric_ranking_chart,
+    create_metric_yearly_breakdown_chart,
     payload_to_df,
     png_bytes,
     vega_spec,
@@ -403,6 +414,33 @@ def _build_confirmation_prompt(spec: Dict[str, Any]) -> str:
     return "Confirm this resolved request before SmartTap runs it:\n- " + "\n- ".join(details)
 
 
+def _build_confirmation_edit_clarification(
+    spec: Dict[str, Any],
+    *,
+    message: str,
+    fields: list[str],
+) -> Dict[str, Any]:
+    details = _resolved_request_text(spec)
+    prompt = message
+    if details:
+        prompt += f" Current request: {details}."
+    return build_clarification_result(spec=spec, prompt=prompt, fields=fields)
+
+
+def _normalize_edit_date(value: Any) -> str:
+    if isinstance(value, datetime):
+        return value.date().isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return datetime.fromisoformat(text).date().isoformat()
+    except ValueError:
+        return ""
+
+
 def _extract_location_from_followup(text: str) -> str | None:
     lowered = " ".join((text or "").strip().lower().replace("_", " ").split())
     if not lowered:
@@ -412,12 +450,30 @@ def _extract_location_from_followup(text: str) -> str | None:
         if location in lowered:
             return location.title()
 
-    if " county" in lowered:
-        county_name = lowered.split(" county")[0].strip()
+    phrase_patterns = [
+        r"\b(?:change|switch|set|update)\s+(?:the\s+)?location\s+(?:to\s+)?([a-z]+(?:\s+[a-z]+){0,2}(?:\s+county)?)\b",
+        r"\blocation\s+(?:to|is)\s+([a-z]+(?:\s+[a-z]+){0,2}(?:\s+county)?)\b",
+        r"\b(?:in|near|around)\s+([a-z]+(?:\s+[a-z]+){0,2}(?:\s+county)?)\b",
+    ]
+    for pattern in phrase_patterns:
+        match = re.search(pattern, lowered)
+        if match:
+            candidate = " ".join(match.group(1).split())
+            if candidate.endswith(" county"):
+                county_name = candidate[: -len(" county")].strip()
+                if county_name:
+                    return f"{county_name.title()} County"
+            if candidate.replace(" ", "").isalpha():
+                return candidate.title()
+
+    county_matches = re.findall(r"\b([a-z]+(?:\s+[a-z]+){0,2})\s+county\b", lowered)
+    if county_matches:
+        county_name = county_matches[-1].strip()
         if county_name:
             return f"{county_name.title()} County"
 
-    if lowered.replace(" ", "").isalpha():
+    tokens = lowered.split()
+    if len(tokens) <= 2 and all(token.isalpha() for token in tokens):
         return lowered.title()
     return None
 
@@ -432,23 +488,137 @@ def _extract_date_patch(text: str) -> Dict[str, str]:
     return {"start_date": f"{years[0]}-01-01", "end_date": f"{years[-1]}-12-31"}
 
 
+def _extract_crop_patch(text: str) -> str:
+    if not text:
+        return ""
+    direct_match = canonicalize_crop_name(best_crop_keyword_match(text, CROP_NAME_CANDIDATES))
+    if direct_match:
+        return direct_match
+
+    keyword_match = match_crop_keywords(text)
+    if keyword_match:
+        return canonicalize_crop_name(keyword_match[1])
+    return ""
+
+
+def _clears_crop_filter(text: str) -> bool:
+    lowered = " ".join((text or "").strip().lower().split())
+    return any(
+        token in lowered
+        for token in [
+            "all crops",
+            "any crop",
+            "without crop filter",
+            "without a crop filter",
+            "no crop filter",
+        ]
+    )
+
+
+def _prefer_precip_followup_variable(text: str, location_type: str) -> str:
+    lowered = (text or "").lower()
+    if any(token in lowered for token in ["usable rain", "usable rainfall", "effective rainfall"]):
+        return "Prz"
+    if "accumul" in lowered:
+        return "24_HR_PCP" if location_type != "county" else "PPT"
+    if location_type == "county" or any(token in lowered for token in ["field", "fields", "crop", "orchard", "vineyard"]):
+        return "PPT"
+    return "PC"
+
+
+def _extract_variable_patch(text: str, pending_spec: Dict[str, Any]) -> list[str]:
+    lowered = (text or "").lower()
+    location_type = str(pending_spec.get("location_type") or "").lower().strip()
+    if not location_type:
+        display_location = str(pending_spec.get("display_location") or pending_spec.get("location") or "").lower()
+        location_type = "county" if display_location.endswith(" county") else "city"
+
+    inferred = infer_variables_from_text(text)
+
+    if not inferred and any(token in lowered for token in ["rain", "rainfall", "precip"]):
+        inferred.append(_prefer_precip_followup_variable(text, location_type))
+
+    if any(value in inferred for value in {"PC", "24_HR_PCP", "PPT"}) and any(token in lowered for token in ["rain", "precip"]):
+        preferred = _prefer_precip_followup_variable(text, location_type)
+        inferred = [preferred] + [value for value in inferred if value not in {"PC", "24_HR_PCP", "PPT"}]
+
+    if "how many" in lowered and "IRR_STATUS" not in inferred and any(token in lowered for token in ["irrigated", "irrigation presence"]):
+        inferred.append("IRR_STATUS")
+
+    if "by crop" in lowered and "CROP" not in inferred:
+        inferred.append("CROP")
+    if any(token in lowered for token in ["irrigation system", "irrigation systems", "irrigation method", "irrigation methods"]) and "ITYPE" not in inferred:
+        inferred.append("ITYPE")
+    if any(token in lowered for token in ["irrigated vs", "non irrigated", "non-irrigated"]) and "IRR_STATUS" not in inferred:
+        inferred.append("IRR_STATUS")
+
+    preferred_pairs = [
+        ("per_IRRIGATED", "IRR_STATUS"),
+        ("AVG_HUM", "TU"),
+        ("AVG_TMP", "OBM"),
+        ("AV_WSPD", "WS"),
+        ("24_HR_PCP", "PC"),
+    ]
+    values = list(inferred)
+    for preferred, fallback in preferred_pairs:
+        if preferred in values and fallback in values:
+            values = [value for value in values if value != fallback]
+
+    deduped: list[str] = []
+    seen = set()
+    for value in values:
+        if value not in seen:
+            deduped.append(value)
+            seen.add(value)
+    return deduped
+
+
 def _merge_followup_into_pending(followup_query: str, pending_spec: Dict[str, Any]) -> Dict[str, Any]:
     merged = dict(pending_spec)
     clarified = set(merged.get("confirmed_fields") or [])
     missing = list(merged.get("clarification_needed") or [])
 
     location = _extract_location_from_followup(followup_query)
-    if location and any(field in missing for field in ["location", "station"]):
+    if location:
         merged["location"] = location
         merged["display_location"] = location
+        merged.pop("location_type", None)
+        merged.pop("station_id", None)
+        merged.pop("station_title", None)
         clarified.add("location")
         missing = [field for field in missing if field not in {"location", "station"}]
 
     date_patch = _extract_date_patch(followup_query)
-    if date_patch and "time_range" in missing:
+    if date_patch:
         merged.update(date_patch)
+        merged.pop("year", None)
         clarified.add("time_range")
         missing = [field for field in missing if field != "time_range"]
+
+    crop_patch = _extract_crop_patch(followup_query)
+    if crop_patch:
+        merged["crop_filter"] = crop_patch
+    elif _clears_crop_filter(followup_query):
+        merged.pop("crop_filter", None)
+
+    variable_patch = _extract_variable_patch(followup_query, merged)
+    if variable_patch:
+        merged["variables"] = variable_patch
+        for key in [
+            "dataset",
+            "source_datasets",
+            "chart_package",
+            "compare_by",
+            "split_by",
+            "group_by",
+            "secondary_variables",
+            "openet_geo",
+            "openet_id",
+            "huc8_code",
+            "station_id",
+            "station_title",
+        ]:
+            merged.pop(key, None)
 
     merged["confirmed_fields"] = sorted(clarified)
     merged["confirmation_status"] = "pending"
@@ -602,6 +772,124 @@ def _run_grouped_comparison(query: str, spec: Dict[str, Any], paths: Dict[str, P
         files=_files_as_strings(paths),
         secondary_views=secondary_views,
         validation_report=report,
+    )
+
+
+def _run_ranking_metric(query: str, spec: Dict[str, Any], paths: Dict[str, Path]) -> Dict[str, Any]:
+    del query
+    if spec.get("dataset") != "openet":
+        raise SmartTapError("Ranking metric views are currently implemented for OpenET only.")
+
+    query_system = _init_location_query()
+    location = spec.get("location", "")
+    display_location = _resolved_display_location(spec)
+    location_type = spec.get("location_type", "city")
+    clean_location = _clean_location_name(location, location_type)
+    compare_by = str(spec.get("compare_by") or spec.get("split_by") or (spec.get("variables") or [""])[0])
+
+    yearly_df = query_system.query_categorical_counts_by_location(
+        location=clean_location,
+        location_type=location_type,
+        compare_by=compare_by,
+        start_date=str(spec.get("start_date") or "2024-01-01"),
+        end_date=str(spec.get("end_date") or "2024-12-31"),
+        crop_filter=spec.get("crop_filter"),
+    )
+    if yearly_df.empty:
+        raise SmartTapError(f"No categorical ranking data found for {display_location}.")
+
+    ranking_df = (
+        yearly_df.groupby("group", as_index=False)["field_count"]
+        .sum()
+        .sort_values("field_count", ascending=False)
+        .reset_index(drop=True)
+    )
+    total_field_years = int(ranking_df["field_count"].sum())
+    ranking_df["share"] = (
+        (ranking_df["field_count"] / total_field_years * 100).round(1) if total_field_years else 0.0
+    )
+    ranking_df = ranking_df.rename(columns={"group": "Group", "field_count": "Field Count", "share": "Share (%)"})
+
+    primary_png, primary_vega = create_metric_ranking_chart(
+        ranking_df.rename(columns={"Group": "group", "Field Count": "field_count", "Share (%)": "share"}),
+        location=display_location,
+        compare_by=compare_by,
+    )
+    _save_bytes(paths["png"], primary_png)
+    _save_json(paths["vega"], primary_vega)
+
+    breakdown_png, breakdown_vega = create_metric_yearly_breakdown_chart(
+        yearly_df,
+        location=display_location,
+        compare_by=compare_by,
+    )
+    secondary_paths = _paths_with_suffix(paths, "yearly_breakdown")
+    breakdown_preview = (
+        yearly_df.rename(columns={"group": "Group", "field_count": "Field Count"})
+        [["datetime", "Group", "Field Count"]]
+        .sort_values(["datetime", "Group"])
+        .reset_index(drop=True)
+    )
+    secondary_views = [
+        _build_secondary_view(
+            caption="This companion chart shows the year-by-year mix across irrigation-system categories.",
+            chart_bytes=breakdown_png,
+            vega=breakdown_vega,
+            data_preview=breakdown_preview,
+            paths=secondary_paths,
+        )
+    ]
+
+    summary = _common_summary(spec, list(spec.get("variables") or [compare_by]), yearly_df)
+    summary.update(
+        {
+            "row_count": len(yearly_df),
+            "group_count": int(ranking_df["Group"].nunique()),
+            "groups": ", ".join(ranking_df["Group"].astype(str).tolist()),
+            "compare_by": compare_by,
+            "total_field_years": total_field_years,
+            "top_group": str(ranking_df.iloc[0]["Group"]),
+            "top_group_count": int(ranking_df.iloc[0]["Field Count"]),
+            "top_group_share": float(ranking_df.iloc[0]["Share (%)"]),
+            "evidence_pattern": spec.get("evidence_pattern"),
+            "chart_package": spec.get("chart_package"),
+            "secondary_view_count": len(secondary_views),
+        }
+    )
+
+    explanation = build_result_explanation(
+        spec=spec,
+        df=ranking_df,
+        summary=summary,
+        vega_spec=primary_vega,
+    )
+
+    validation_report = {
+        "ok": True,
+        "errors": [],
+        "warnings": [],
+        "summary": {
+            "row_count": int(len(yearly_df)),
+            "group_count": int(ranking_df["Group"].nunique()),
+            "total_field_years": total_field_years,
+        },
+        "location": display_location,
+        "variables": list(spec.get("variables") or [compare_by]),
+        "start_date": spec.get("start_date"),
+        "end_date": spec.get("end_date"),
+    }
+
+    return build_success_result(
+        spec=spec,
+        summary=summary,
+        explanation=explanation,
+        data_preview=ranking_df.reset_index(drop=True),
+        data=ranking_df.reset_index(drop=True),
+        chart_bytes=primary_png,
+        vega_spec=primary_vega,
+        files=_files_as_strings(paths),
+        secondary_views=secondary_views,
+        validation_report=validation_report,
     )
 
 
@@ -903,6 +1191,9 @@ def process_query(query: str, spec: Dict[str, Any] | None = None) -> Dict[str, A
         if fixed_spec.get("evidence_pattern") == "comparison_grouped":
             return _save_partner_results(query, _run_grouped_comparison(query, fixed_spec, paths))
 
+        if fixed_spec.get("evidence_pattern") == "ranking_metric":
+            return _save_partner_results(query, _run_ranking_metric(query, fixed_spec, paths))
+
         if task == "visualize_timeseries":
             return _save_partner_results(query, _run_visualization_task(query, fixed_spec, paths))
         if task == "statistical_summary":
@@ -923,6 +1214,19 @@ def process_clarification_reply(
     pending_spec: Dict[str, Any],
     original_query: str,
 ) -> Dict[str, Any]:
+    return process_followup_reply(
+        followup_query=followup_query,
+        pending_spec=pending_spec,
+        original_query=original_query,
+    )
+
+
+def process_followup_reply(
+    *,
+    followup_query: str,
+    pending_spec: Dict[str, Any],
+    original_query: str,
+) -> Dict[str, Any]:
     merged = _merge_followup_into_pending(followup_query, pending_spec)
     combined_query = f"{original_query} {followup_query}".strip()
     fixed_spec = validate_and_fix_spec(merged, combined_query)
@@ -935,7 +1239,140 @@ def process_clarification_reply(
             fields=clarification_fields,
         )
 
-    return process_query(original_query, spec=fixed_spec)
+    fixed_spec["confirmation_status"] = "pending"
+    return build_confirmation_result(
+        spec=fixed_spec,
+        prompt=_build_confirmation_prompt(fixed_spec),
+    )
+
+
+def apply_confirmation_edit(
+    *,
+    pending_spec: Dict[str, Any],
+    original_query: str,
+    field: str,
+    value: Any,
+) -> Dict[str, Any]:
+    edited_spec = dict(pending_spec)
+    confirmed_fields = set(edited_spec.get("confirmed_fields") or [])
+    field_name = str(field or "").strip().lower()
+
+    if field_name == "crop":
+        crop_value = canonicalize_crop_name(str(value or ""))
+        if not crop_value:
+            edited_spec.pop("crop_filter", None)
+            return _build_confirmation_edit_clarification(
+                edited_spec,
+                message="I need the crop name to update this request.",
+                fields=["crop_filter"],
+            )
+        edited_spec["crop_filter"] = crop_value
+        confirmed_fields.add("crop_filter")
+
+    elif field_name == "location":
+        location_value = str(value or "").strip()
+        if not location_value:
+            edited_spec.pop("location", None)
+            edited_spec.pop("display_location", None)
+            edited_spec.pop("location_type", None)
+            edited_spec.pop("station_id", None)
+            edited_spec.pop("station_title", None)
+            confirmed_fields.discard("location")
+            edited_spec["confirmed_fields"] = sorted(confirmed_fields)
+            edited_spec["confirmation_status"] = "pending"
+            return _build_confirmation_edit_clarification(
+                edited_spec,
+                message="I need the location to update this request.",
+                fields=["location"],
+            )
+        edited_spec["location"] = location_value
+        edited_spec["display_location"] = location_value
+        for key in ["location_type", "station_id", "station_title", "openet_id", "huc8_code", "openet_geo"]:
+            edited_spec.pop(key, None)
+        confirmed_fields.add("location")
+
+    elif field_name == "time_range":
+        payload = value if isinstance(value, dict) else {}
+        start_date = _normalize_edit_date(payload.get("start_date"))
+        end_date = _normalize_edit_date(payload.get("end_date"))
+        if not start_date or not end_date:
+            edited_spec.pop("start_date", None)
+            edited_spec.pop("end_date", None)
+            edited_spec.pop("year", None)
+            confirmed_fields.discard("time_range")
+            edited_spec["confirmed_fields"] = sorted(confirmed_fields)
+            edited_spec["confirmation_status"] = "pending"
+            return _build_confirmation_edit_clarification(
+                edited_spec,
+                message="I need both a start date and an end date to update the time range.",
+                fields=["time_range"],
+            )
+        if start_date > end_date:
+            edited_spec["confirmed_fields"] = sorted(confirmed_fields)
+            edited_spec["confirmation_status"] = "pending"
+            return _build_confirmation_edit_clarification(
+                edited_spec,
+                message="The start date must be on or before the end date.",
+                fields=["time_range"],
+            )
+        edited_spec["start_date"] = start_date
+        edited_spec["end_date"] = end_date
+        edited_spec.pop("year", None)
+        confirmed_fields.add("time_range")
+
+    elif field_name == "metric":
+        metric_value = normalize_variable(str(value or "").strip())
+        metadata = get_variable_metadata(metric_value)
+        if not metadata:
+            return _build_confirmation_edit_clarification(
+                edited_spec,
+                message="I couldn't match that metric to a supported field. Choose one of the listed metrics.",
+                fields=["variable"],
+            )
+        edited_spec["variables"] = [metadata.code]
+        for key in [
+            "dataset",
+            "source_datasets",
+            "chart_package",
+            "compare_by",
+            "split_by",
+            "group_by",
+            "secondary_variables",
+            "openet_geo",
+            "openet_id",
+            "huc8_code",
+            "station_id",
+            "station_title",
+        ]:
+            edited_spec.pop(key, None)
+        confirmed_fields.add("variable")
+
+    else:
+        return build_error_result(f"Unsupported confirmation edit field: {field}")
+
+    edited_spec["confirmed_fields"] = sorted(confirmed_fields)
+    edited_spec["confirmation_status"] = "pending"
+    edited_spec.pop("clarification_needed", None)
+
+    fixed_spec = validate_and_fix_spec(edited_spec, original_query)
+    if len(fixed_spec.get("variables") or []) <= 1:
+        secondary_variables = list(fixed_spec.get("secondary_variables") or [])
+        if not secondary_variables or secondary_variables == list(fixed_spec.get("variables") or []):
+            fixed_spec.pop("secondary_variables", None)
+
+    clarification_fields = list(fixed_spec.get("clarification_needed") or [])
+    if clarification_fields:
+        return build_clarification_result(
+            spec=fixed_spec,
+            prompt=_build_clarification_prompt(fixed_spec, clarification_fields),
+            fields=clarification_fields,
+        )
+
+    fixed_spec["confirmation_status"] = "pending"
+    return build_confirmation_result(
+        spec=fixed_spec,
+        prompt=_build_confirmation_prompt(fixed_spec),
+    )
 
 
 def confirm_query(

@@ -998,6 +998,50 @@ class LocationCropQuery:
         combined["location_type"] = location_type
         return combined.sort_values(["variable", "group", "datetime"]).reset_index(drop=True)
 
+    def query_categorical_counts_by_location(
+        self,
+        *,
+        location: str,
+        location_type: str,
+        compare_by: str,
+        start_date: str,
+        end_date: str,
+        crop_filter: Optional[str] = None,
+        max_distance: int = 1,
+    ) -> pd.DataFrame:
+        if self.crop_source != "geopackage":
+            return pd.DataFrame()
+        if compare_by not in GROUPABLE_FIELDS:
+            raise ValueError(f"Unsupported grouped comparison field: {compare_by}")
+
+        fields = self._resolve_fields_for_location(location_type, location, max_distance=max_distance)
+        if fields.empty:
+            return pd.DataFrame()
+
+        openet_ids = fields["OPENET_ID"].tolist()
+        years = list(range(pd.to_datetime(start_date).year, pd.to_datetime(end_date).year + 1))
+        field_year_df = self._build_group_assignment_frame(
+            openet_ids=openet_ids,
+            years=years,
+            compare_by=compare_by,
+            crop_filter=crop_filter,
+        )
+        if field_year_df.empty:
+            return pd.DataFrame()
+
+        grouped = (
+            field_year_df.groupby(["year", "group_label"], as_index=False)
+            .size()
+            .rename(columns={"group_label": "group", "size": "field_count"})
+        )
+        grouped["datetime"] = pd.to_datetime(grouped["year"].astype(str) + "-01-01")
+        grouped["compare_by"] = compare_by
+        grouped["location"] = location
+        grouped["location_type"] = location_type
+        return grouped[["datetime", "group", "field_count", "compare_by", "location", "location_type"]].sort_values(
+            ["datetime", "group"]
+        ).reset_index(drop=True)
+
     def get_annual_derived_timeseries(
         self,
         openet_ids: List[str],

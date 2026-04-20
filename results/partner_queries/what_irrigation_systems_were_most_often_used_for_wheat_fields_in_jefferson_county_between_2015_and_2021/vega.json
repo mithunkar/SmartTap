@@ -1,0 +1,64 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Most Common Irrigation System in Jefferson County",
+  "data": {
+    "values": [
+      {
+        "group": "ITYPE 5",
+        "field_count": 10,
+        "share": 1.2
+      },
+      {
+        "group": "ITYPE 4",
+        "field_count": 76,
+        "share": 8.9
+      },
+      {
+        "group": "ITYPE 3",
+        "field_count": 120,
+        "share": 14.1
+      },
+      {
+        "group": "ITYPE 1",
+        "field_count": 180,
+        "share": 21.1
+      },
+      {
+        "group": "ITYPE 2",
+        "field_count": 467,
+        "share": 54.7
+      }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "y": {
+      "field": "group",
+      "type": "nominal",
+      "sort": "-x",
+      "title": "Irrigation System"
+    },
+    "x": {
+      "field": "field_count",
+      "type": "quantitative",
+      "title": "Field-Years"
+    },
+    "tooltip": [
+      {
+        "field": "group",
+        "type": "nominal",
+        "title": "Irrigation System"
+      },
+      {
+        "field": "field_count",
+        "type": "quantitative",
+        "title": "Field-Years"
+      },
+      {
+        "field": "share",
+        "type": "quantitative",
+        "title": "Share (%)"
+      }
+    ]
+  }
+}

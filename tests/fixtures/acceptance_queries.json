@@ -77,10 +77,10 @@
         "start_date": "2015-01-01",
         "end_date": "2021-12-31",
         "interval": "yearly",
-        "evidence_pattern": "trend_single",
+        "evidence_pattern": "ranking_metric",
         "source_datasets": ["openet"]
       },
-      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "ranking_metric"}
     },
     {
       "id": "workbook_row_06",

@@ -192,6 +192,31 @@ def _build_grouped_explanation(
     )
 
 
+def _build_ranking_metric_explanation(
+    spec: Dict[str, Any],
+    df: pd.DataFrame | None,
+    summary: Dict[str, Any],
+    vega_spec: Dict[str, Any] | None,
+) -> str:
+    del vega_spec
+    compare_by = str(summary.get("compare_by") or spec.get("compare_by") or "group")
+    location = _format_location(spec)
+    scope_prefix = _format_scope_prefix(spec)
+    date_range = _format_date_range(spec)
+    total_field_years = int(summary.get("total_field_years") or 0)
+    top_group = str(summary.get("top_group") or "the leading category")
+    top_count = int(summary.get("top_group_count") or 0)
+    top_share = summary.get("top_group_share")
+    group_count = int(summary.get("group_count") or 0)
+
+    share_text = f" ({top_share}% of field-years)" if top_share is not None else ""
+    return (
+        f"This chart ranks {variable_label(compare_by).lower()}{scope_prefix} in {location}{(' ' + date_range) if date_range else ''}. "
+        f"The most common category is {top_group} with {top_count} field-years{share_text}. "
+        f"In total, the result covers {total_field_years} field-years across {group_count} categories, and the companion chart shows how that mix changed year by year."
+    )
+
+
 def _build_statistical_explanation(
     spec: Dict[str, Any],
     df: pd.DataFrame | None,
@@ -249,7 +274,7 @@ EXPLANATION_BUILDERS: Dict[str, ExplanationBuilder] = {
     "trend_single": _build_timeseries_explanation,
     "ranking_categories": _build_crop_summary_explanation,
     "distribution_categories": _build_crop_summary_explanation,
-    "ranking_metric": _build_grouped_explanation,
+    "ranking_metric": _build_ranking_metric_explanation,
     "comparison_multivariate": _build_comparison_explanation,
     "comparison_grouped": _build_grouped_explanation,
     "cross_dataset_comparison": _build_cross_dataset_explanation,

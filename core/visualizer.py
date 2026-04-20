@@ -340,6 +340,92 @@ def create_grouped_summary_chart(
     return summary, buf.getvalue(), vega
 
 
+def create_metric_ranking_chart(
+    ranking_df: pd.DataFrame,
+    *,
+    location: str,
+    compare_by: str,
+    title: str | None = None,
+) -> Tuple[bytes, Dict[str, Any]]:
+    data = ranking_df.copy()
+    resolved_title = title or f"Most Common {variable_label(compare_by)} in {location}"
+    plot_df = data.sort_values("field_count", ascending=True)
+
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": resolved_title,
+        "data": {"values": plot_df.to_dict("records")},
+        "mark": "bar",
+        "encoding": {
+            "y": {"field": "group", "type": "nominal", "sort": "-x", "title": variable_label(compare_by)},
+            "x": {"field": "field_count", "type": "quantitative", "title": "Field-Years"},
+            "tooltip": [
+                {"field": "group", "type": "nominal", "title": variable_label(compare_by)},
+                {"field": "field_count", "type": "quantitative", "title": "Field-Years"},
+                {"field": "share", "type": "quantitative", "title": "Share (%)"},
+            ],
+        },
+    }
+
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    ax.barh(plot_df["group"], plot_df["field_count"], color="#4c78a8")
+    ax.set_title(resolved_title)
+    ax.set_xlabel("Field-Years")
+    ax.set_ylabel(variable_label(compare_by))
+    ax.grid(axis="x", alpha=0.25)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=160)
+    plt.close(fig)
+    return buf.getvalue(), vega
+
+
+def create_metric_yearly_breakdown_chart(
+    yearly_df: pd.DataFrame,
+    *,
+    location: str,
+    compare_by: str,
+    title: str | None = None,
+) -> Tuple[bytes, Dict[str, Any]]:
+    data = yearly_df.copy()
+    data["datetime"] = pd.to_datetime(data["datetime"])
+    data["year"] = data["datetime"].dt.year.astype(str)
+    resolved_title = title or f"{variable_label(compare_by)} by Year in {location}"
+
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": resolved_title,
+        "data": {"values": _json_safe_records(data[["datetime", "year", "group", "field_count"]])},
+        "mark": "bar",
+        "encoding": {
+            "x": {"field": "year", "type": "nominal", "title": "Year"},
+            "y": {"field": "field_count", "type": "quantitative", "title": "Field-Years", "stack": "zero"},
+            "color": {"field": "group", "type": "nominal", "title": variable_label(compare_by)},
+            "tooltip": [
+                {"field": "year", "type": "nominal", "title": "Year"},
+                {"field": "group", "type": "nominal", "title": variable_label(compare_by)},
+                {"field": "field_count", "type": "quantitative", "title": "Field-Years"},
+            ],
+        },
+    }
+
+    pivoted = data.pivot_table(index="year", columns="group", values="field_count", aggfunc="sum").fillna(0)
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    pivoted.plot(kind="bar", stacked=True, ax=ax)
+    ax.set_title(resolved_title)
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Field-Years")
+    ax.legend(title=variable_label(compare_by), bbox_to_anchor=(1.02, 1), loc="upper left")
+    ax.grid(axis="y", alpha=0.25)
+    fig.tight_layout()
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=160)
+    plt.close(fig)
+    return buf.getvalue(), vega
+
+
 def _json_safe_records(df: pd.DataFrame) -> list[dict]:
     """Convert datetime-like objects into JSON-safe strings."""
     out = df.to_dict(orient="records")

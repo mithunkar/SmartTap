@@ -1,0 +1,16 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "row_count": 32,
+    "group_count": 5,
+    "total_field_years": 853
+  },
+  "location": "Jefferson County",
+  "variables": [
+    "ITYPE"
+  ],
+  "start_date": "2015-01-01",
+  "end_date": "2021-12-31"
+}

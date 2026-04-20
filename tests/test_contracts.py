@@ -215,6 +215,27 @@ def test_validate_and_fix_spec_infers_partner_query_fields():
     assert result["evidence_pattern"] == "trend_single"
 
 
+def test_validate_and_fix_spec_strips_grouping_variables_from_crop_filtered_trend_prompts():
+    result = validate_and_fix_spec(
+        {
+            "task": "visualize_timeseries",
+            "dataset": "openet",
+            "location": "Deschutes County",
+            "location_type": "county",
+            "variables": ["per_IRRIGATED", "CROP"],
+            "start_date": "2018-01-01",
+            "end_date": "2024-12-31",
+        },
+        "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+    )
+    assert result["variables"] == ["per_IRRIGATED"]
+    assert result["crop_filter"] == "Potato"
+    assert result["evidence_pattern"] == "trend_single"
+    assert "compare_by" not in result
+    assert "split_by" not in result
+    assert "group_by" not in result
+
+
 def test_validate_and_fix_spec_summarize_crops_keeps_focus_crop():
     result = validate_and_fix_spec(
         {},
@@ -234,6 +255,19 @@ def test_validate_and_fix_spec_uses_sum_aggregation_for_irrigated_counts():
     assert result["variables"] == ["IRR_STATUS"]
     assert result["aggregation"] == "sum"
     assert result["crop_filter"] == "Barley"
+
+
+def test_validate_and_fix_spec_routes_irrigation_system_ranking_prompt():
+    result = validate_and_fix_spec(
+        {},
+        "What irrigation systems were most often used for wheat fields in Jefferson County between 2015 and 2021?",
+    )
+    assert result["variables"] == ["ITYPE"]
+    assert result["crop_filter"] == "Wheat"
+    assert result["evidence_pattern"] == "ranking_metric"
+    assert result["compare_by"] == "ITYPE"
+    assert "group_by" not in result
+    assert "split_by" not in result
 
 
 def test_validate_and_fix_spec_routes_cross_dataset_pattern():

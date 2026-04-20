@@ -1,0 +1,59 @@
+{
+  "prompt": "What irrigation systems were most often used for wheat fields in Jefferson County between 2015 and 2021?",
+  "spec": {
+    "partner_query_id": "debug_jefferson_itype2",
+    "variables": [
+      "ITYPE"
+    ],
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "task": "visualize_timeseries",
+    "location": "Jefferson County",
+    "display_location": "Jefferson County",
+    "dataset": "openet",
+    "location_type": "county",
+    "chart_type": "line",
+    "interval": "yearly",
+    "openet_geo": "location",
+    "start_date": "2015-01-01",
+    "end_date": "2021-12-31",
+    "crop_filter": "Wheat",
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "openet"
+    ],
+    "secondary_variables": [],
+    "group_by": [
+      "ITYPE"
+    ],
+    "split_by": "ITYPE",
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Jefferson County",
+    "resolved_location": "Jefferson County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "ITYPE",
+    "variables_list": [
+      "ITYPE"
+    ],
+    "variable_labels": [
+      "Irrigation System"
+    ],
+    "date_range": "2015-01-01 to 2021-01-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "crop_filter": "Wheat",
+    "row_count": 7,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

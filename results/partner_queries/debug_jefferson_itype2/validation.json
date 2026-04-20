@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "row_count": 7,
+    "missing_fraction": {
+      "ITYPE": 0.0
+    }
+  },
+  "location": "Jefferson County",
+  "variables": [
+    "ITYPE"
+  ],
+  "start_date": "2015-01-01",
+  "end_date": "2021-12-31"
+}

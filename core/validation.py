@@ -18,7 +18,11 @@ from .crop_utils import (
     normalize_crop_phrase,
     normalize_free_text,
 )
-from .evidence_router import detect_source_datasets, route_evidence_pattern
+from .evidence_router import (
+    detect_source_datasets,
+    is_crop_filtered_trend_request,
+    route_evidence_pattern,
+)
 from .location_resolver import display_location_name, resolve_agrimet_location, supported_agrimet_locations
 from .variable_registry import (
     AGRIMET_VARIABLES,
@@ -517,6 +521,23 @@ def _apply_location_resolution(fixed: QuerySpec) -> QuerySpec:
     return fixed
 
 
+def _normalize_grouping_variables_for_crop_trends(fixed: QuerySpec, user_query: str) -> QuerySpec:
+    variables = list(fixed.get("variables") or [])
+    if not variables or not is_crop_filtered_trend_request(fixed, user_query):
+        return fixed
+
+    non_group_variables = [value for value in variables if value not in {"CROP", "IRR_STATUS", "ITYPE"}]
+    if not non_group_variables:
+        return fixed
+
+    fixed["variables"] = non_group_variables
+    fixed.pop("group_by", None)
+    fixed.pop("split_by", None)
+    fixed.pop("compare_by", None)
+    fixed["secondary_variables"] = []
+    return fixed
+
+
 def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, Any]:
     fixed = _normalize_spec_shape(dict(spec or {}))
     confirmed_fields = set(fixed.get("confirmed_fields") or [])
@@ -600,6 +621,8 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
     inferred_crop = _infer_crop_filter(fixed, user_query)
     if inferred_crop:
         fixed["crop_filter"] = inferred_crop
+
+    fixed = _normalize_grouping_variables_for_crop_trends(fixed, user_query)
 
     fixed["display_location"] = fixed.get("display_location") or (
         display_location_name(str(fixed["location"]), fixed.get("location_type")) if fixed.get("location") else ""

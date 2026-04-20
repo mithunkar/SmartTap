@@ -1,0 +1,56 @@
+{
+  "prompt": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+  "spec": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "openet_geo": "location",
+    "location": "Deschutes County",
+    "location_type": "county",
+    "variables": [
+      "per_IRRIGATED"
+    ],
+    "start_date": "2018-01-01",
+    "end_date": "2024-12-31",
+    "interval": "monthly",
+    "chart_type": "line",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "display_location": "Deschutes County",
+    "crop_filter": "Potato",
+    "secondary_variables": [
+      "per_IRRIGATED"
+    ],
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "openet"
+    ],
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Deschutes County",
+    "resolved_location": "Deschutes County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "per_IRRIGATED",
+    "variables_list": [
+      "per_IRRIGATED"
+    ],
+    "variable_labels": [
+      "Irrigated Share (percent)"
+    ],
+    "date_range": "2018-01-01 to 2024-01-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "crop_filter": "Potato",
+    "row_count": 7,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

@@ -14,20 +14,22 @@
     "interval": "annual",
     "chart_type": "line",
     "statistics": [],
-    "clarification_needed": [],
-    "confirmed_fields": [],
+    "confirmed_fields": [
+      "crop_filter"
+    ],
     "notes": [],
     "display_location": "Morrow County",
-    "crop_filter": "Alfalfa",
+    "crop_filter": "Winter Wheat",
     "confirmation_status": "confirmed",
     "source_datasets": [
       "openet"
     ],
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend",
+    "clarification_needed": [],
     "secondary_variables": [
       "ACRES_FTR_GEOM"
-    ],
-    "evidence_pattern": "trend_single",
-    "chart_package": "single_trend"
+    ]
   },
   "summary": {
     "task": "visualize_timeseries",
@@ -48,7 +50,7 @@
     "source_datasets": [
       "openet"
     ],
-    "crop_filter": "Alfalfa",
+    "crop_filter": "Winter Wheat",
     "row_count": 9,
     "evidence_pattern": "trend_single",
     "chart_package": "single_trend"

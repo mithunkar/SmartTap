@@ -260,6 +260,26 @@ class TestDataFetcher(unittest.TestCase):
 
         self.assertIn("Alfalfa", set(result["crop_name"]))
 
+    def test_itype_categorical_counts_return_grouped_field_years(self):
+        """ITYPE ranking queries should return category counts by year, not a single modal code."""
+        query = LocationCropQuery(full_oregon_gpkg="data/preliminary_or_field_geopackage.gpkg")
+
+        result = query.query_categorical_counts_by_location(
+            location="Jefferson County",
+            location_type="county",
+            compare_by="ITYPE",
+            start_date="2015-01-01",
+            end_date="2021-12-31",
+            crop_filter="Wheat",
+        )
+
+        self.assertGreater(len(result), 7)
+        self.assertIn("field_count", result.columns)
+        self.assertEqual(result["datetime"].min().strftime("%Y-%m-%d"), "2015-01-01")
+        self.assertEqual(result["datetime"].max().strftime("%Y-%m-%d"), "2021-01-01")
+        self.assertGreater(result["group"].nunique(), 1)
+        self.assertTrue((result["field_count"] > 0).all())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

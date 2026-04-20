@@ -3,21 +3,146 @@ from __future__ import annotations
 import io
 import json
 from html import escape
-from datetime import datetime
+from datetime import date, datetime
 
 import streamlit as st
 from PIL import Image
 
-from smarttap_service import confirm_query, process_clarification_reply, process_query
+from core.variable_registry import variable_label, variables_for_dataset
+from smarttap_service import apply_confirmation_edit, confirm_query, process_followup_reply, process_query
 
 
-def _looks_like_new_query(text: str) -> bool:
-    lowered = (text or "").strip().lower()
-    if not lowered:
-        return False
-    if len(lowered.split()) <= 2 and all(token.isalpha() for token in lowered.split()):
-        return False
-    return True
+CONFIRMATION_EDIT_FIELDS = ["crop", "location", "time_range", "metric"]
+CONFIRMATION_EDIT_LABELS = {
+    "crop": "Crop",
+    "location": "Location",
+    "time_range": "Time Range",
+    "metric": "Metric",
+}
+
+
+def _state_defaults() -> dict:
+    return {
+        "messages": [],
+        "current_chart": None,
+        "current_data": None,
+        "current_details": None,
+        "current_spec": None,
+        "current_vega_spec": None,
+        "current_files": None,
+        "current_explanation": None,
+        "current_secondary_views": None,
+        "pending_spec": None,
+        "confirmation_spec": None,
+        "original_query": None,
+        "followup_mode": None,
+        "confirmation_editor_open": False,
+        "confirmation_edit_field": None,
+        "confirmation_edit_text": "",
+        "confirmation_edit_start_date": None,
+        "confirmation_edit_end_date": None,
+        "confirmation_edit_metric": None,
+    }
+
+
+def _metric_options() -> list[str]:
+    seen = set()
+    options: list[str] = []
+    for dataset in ["agrimet", "openet"]:
+        for metadata in variables_for_dataset(dataset):
+            if metadata.code not in seen:
+                options.append(metadata.code)
+                seen.add(metadata.code)
+    return options
+
+
+def _metric_option_label(code: str) -> str:
+    return f"{variable_label(code)} [{code}]"
+
+
+def _parse_spec_date(value) -> date | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text).date()
+    except ValueError:
+        return None
+
+
+def _default_edit_dates(spec: dict) -> tuple[date, date]:
+    start = _parse_spec_date(spec.get("start_date"))
+    end = _parse_spec_date(spec.get("end_date"))
+    if start and end:
+        return start, end
+
+    year = spec.get("year")
+    try:
+        year_value = int(year) if year is not None else datetime.now().year
+    except (TypeError, ValueError):
+        year_value = datetime.now().year
+    return date(year_value, 1, 1), date(year_value, 12, 31)
+
+
+def _seed_confirmation_editor_inputs(state: dict, spec: dict, field: str) -> None:
+    selected_field = field if field in CONFIRMATION_EDIT_FIELDS else "crop"
+    state["confirmation_edit_field"] = selected_field
+    if selected_field == "crop":
+        state["confirmation_edit_text"] = str(spec.get("crop_filter") or "")
+    elif selected_field == "location":
+        state["confirmation_edit_text"] = str(spec.get("display_location") or spec.get("location") or "")
+    elif selected_field == "time_range":
+        start_date, end_date = _default_edit_dates(spec)
+        state["confirmation_edit_start_date"] = start_date
+        state["confirmation_edit_end_date"] = end_date
+    elif selected_field == "metric":
+        metric_options = _metric_options()
+        current_variable = next(iter(spec.get("variables") or []), "")
+        if current_variable and current_variable not in metric_options:
+            metric_options = [current_variable, *metric_options]
+        state["confirmation_edit_metric"] = current_variable or (metric_options[0] if metric_options else "")
+
+
+def _open_confirmation_editor(state: dict) -> None:
+    if state.get("confirmation_spec") is None or not state.get("original_query"):
+        return
+    state["confirmation_editor_open"] = True
+    _seed_confirmation_editor_inputs(state, state["confirmation_spec"], state.get("confirmation_edit_field") or "crop")
+
+
+def _reset_confirmation_editor_inputs(state: dict) -> None:
+    state["confirmation_editor_open"] = False
+    state["confirmation_edit_field"] = None
+    state["confirmation_edit_text"] = ""
+    state["confirmation_edit_start_date"] = None
+    state["confirmation_edit_end_date"] = None
+    state["confirmation_edit_metric"] = None
+
+
+def _close_confirmation_editor(state: dict) -> None:
+    state["confirmation_editor_open"] = False
+    state["confirmation_edit_field"] = None
+
+
+def _next_query_action(
+    query: str,
+    *,
+    followup_mode: str | None,
+    pending_spec: dict | None,
+    original_query: str | None,
+) -> str:
+    del query
+    if followup_mode == "clarification" and pending_spec is not None and original_query:
+        return "followup"
+    return "new_query"
+
+
+def _clear_query_context(state: dict) -> None:
+    state["pending_spec"] = None
+    state["confirmation_spec"] = None
+    state["original_query"] = None
+    state["followup_mode"] = None
+    _reset_confirmation_editor_inputs(state)
 
 
 def _display_spec(spec: dict) -> dict:
@@ -115,20 +240,7 @@ def _render_definition_list(items: list[tuple[str, str]], columns: int = 2) -> N
 
 
 def _init_state() -> None:
-    defaults = {
-        "messages": [],
-        "current_chart": None,
-        "current_data": None,
-        "current_details": None,
-        "current_spec": None,
-        "current_vega_spec": None,
-        "current_files": None,
-        "current_explanation": None,
-        "current_secondary_views": None,
-        "pending_spec": None,
-        "confirmation_spec": None,
-        "original_query": None,
-    }
+    defaults = _state_defaults()
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
@@ -204,21 +316,8 @@ def _render_sidebar() -> None:
         )
 
         if st.button("Clear Results"):
-            for key in [
-                "messages",
-                "current_chart",
-                "current_data",
-                "current_details",
-                "current_spec",
-                "current_vega_spec",
-                "current_files",
-                "current_explanation",
-                "current_secondary_views",
-                "pending_spec",
-                "confirmation_spec",
-                "original_query",
-            ]:
-                st.session_state[key] = [] if key == "messages" else None
+            for key, value in _state_defaults().items():
+                st.session_state[key] = value
             st.rerun()
 
 
@@ -258,33 +357,43 @@ def _apply_result(result: dict, query: str | None = None) -> None:
         st.session_state.pending_spec = None
         st.session_state.confirmation_spec = None
         st.session_state.original_query = None
+        st.session_state.followup_mode = None
+        _close_confirmation_editor(st.session_state)
     elif result.get("needs_confirmation"):
         _clear_current_result()
         st.session_state.pending_spec = None
         st.session_state.confirmation_spec = result.get("spec")
         if query:
             st.session_state.original_query = st.session_state.original_query or query
+        st.session_state.followup_mode = None
+        _close_confirmation_editor(st.session_state)
     elif result.get("needs_clarification"):
         _clear_current_result()
         st.session_state.pending_spec = result.get("spec")
         st.session_state.confirmation_spec = None
         if query:
             st.session_state.original_query = st.session_state.original_query or query
+        st.session_state.followup_mode = "clarification"
+        _close_confirmation_editor(st.session_state)
 
 
 def _run_query(query: str) -> None:
     st.session_state.messages.append({"role": "user", "content": query})
     with st.spinner("Running SmartTap..."):
-        if st.session_state.pending_spec is not None and st.session_state.original_query:
-            result = process_clarification_reply(
+        action = _next_query_action(
+            query,
+            followup_mode=st.session_state.followup_mode,
+            pending_spec=st.session_state.pending_spec,
+            original_query=st.session_state.original_query,
+        )
+        if action == "followup" and st.session_state.original_query:
+            result = process_followup_reply(
                 followup_query=query,
                 pending_spec=st.session_state.pending_spec,
                 original_query=st.session_state.original_query,
             )
         else:
-            if st.session_state.confirmation_spec is not None:
-                st.session_state.confirmation_spec = None
-                st.session_state.original_query = None
+            _clear_query_context(st.session_state)
             result = process_query(query)
 
     _apply_result(result, query=query)
@@ -304,6 +413,33 @@ def _run_confirmation() -> None:
 
     _apply_result(result)
     _append_result_message(original_query, result)
+
+
+def _run_confirmation_edit() -> None:
+    if st.session_state.confirmation_spec is None or not st.session_state.original_query:
+        return
+
+    field = st.session_state.confirmation_edit_field or "crop"
+    if field == "time_range":
+        value = {
+            "start_date": st.session_state.confirmation_edit_start_date,
+            "end_date": st.session_state.confirmation_edit_end_date,
+        }
+    elif field == "metric":
+        value = st.session_state.confirmation_edit_metric
+    else:
+        value = st.session_state.confirmation_edit_text
+
+    with st.spinner("Updating request..."):
+        result = apply_confirmation_edit(
+            pending_spec=st.session_state.confirmation_spec,
+            original_query=st.session_state.original_query,
+            field=field,
+            value=value,
+        )
+
+    _apply_result(result)
+    _append_result_message(st.session_state.original_query, result)
 
 
 def _render_chat() -> None:
@@ -353,6 +489,50 @@ def _render_result_details() -> None:
             _render_definition_list(_resolved_request_items(spec), columns=2)
 
 
+def _render_confirmation_editor(spec: dict) -> None:
+    st.markdown("**Edit Request**")
+    st.caption("Apply one deterministic change at a time, then confirm the refreshed request.")
+
+    selected_field = st.selectbox(
+        "Field",
+        options=CONFIRMATION_EDIT_FIELDS,
+        index=CONFIRMATION_EDIT_FIELDS.index(st.session_state.confirmation_edit_field or "crop"),
+        format_func=lambda value: CONFIRMATION_EDIT_LABELS[value],
+    )
+    if selected_field != st.session_state.confirmation_edit_field:
+        _seed_confirmation_editor_inputs(st.session_state, spec, selected_field)
+        st.rerun()
+
+    if selected_field == "crop":
+        st.text_input("Crop", key="confirmation_edit_text", placeholder="Winter Wheat")
+    elif selected_field == "location":
+        st.text_input("Location", key="confirmation_edit_text", placeholder="Corvallis or Morrow County")
+    elif selected_field == "time_range":
+        st.date_input("Start date", key="confirmation_edit_start_date")
+        st.date_input("End date", key="confirmation_edit_end_date")
+    elif selected_field == "metric":
+        metric_options = _metric_options()
+        current_metric = st.session_state.confirmation_edit_metric
+        if current_metric and current_metric not in metric_options:
+            metric_options = [current_metric, *metric_options]
+        st.selectbox(
+            "Metric",
+            options=metric_options,
+            key="confirmation_edit_metric",
+            format_func=_metric_option_label,
+        )
+
+    apply_col, cancel_col = st.columns(2)
+    with apply_col:
+        if st.button("Apply Change", use_container_width=True):
+            _run_confirmation_edit()
+            st.rerun()
+    with cancel_col:
+        if st.button("Cancel Edit", use_container_width=True):
+            _close_confirmation_editor(st.session_state)
+            st.rerun()
+
+
 def _render_results() -> None:
     st.subheader("Results")
 
@@ -369,9 +549,10 @@ def _render_results() -> None:
                 st.rerun()
         with edit_col:
             if st.button("Edit Request", use_container_width=True):
-                st.session_state.confirmation_spec = None
-                st.session_state.original_query = None
-                st.info("Enter a revised query in the chat to update the request.")
+                _open_confirmation_editor(st.session_state)
+                st.rerun()
+        if st.session_state.confirmation_editor_open:
+            _render_confirmation_editor(spec)
         st.divider()
 
     if st.session_state.current_chart:
