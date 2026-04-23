@@ -23,7 +23,8 @@ from core.contracts import (
     build_success_result,
 )
 from core.crop_utils import best_crop_keyword_match, canonicalize_crop_name
-from core.data_fetcher import fetch_data, fetch_grouped_data, supported_agrimet_locations
+from core.data_fetcher import fetch_data, fetch_grouped_data
+from core.location_resolver import supported_agrimet_locations
 from core.location_crop_query import LocationCropQuery, normalize_county_name
 from core.validation import CROP_NAME_CANDIDATES, validate_and_fix_spec, validate_payload
 from core.explanation import build_result_explanation
