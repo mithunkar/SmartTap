@@ -8,9 +8,10 @@ import pandas as pd
 
 from .contracts import DatasetAdapter, DatasetContract, QuerySpec
 from .agrimet_api import fetch_agrimet_api_data
+from .agrimet_station_loader import find_local_file_prefixes
 from .location_crop_query import LocationCropQuery
 from .location_resolver import normalize_location_text, resolve_agrimet_location, supported_agrimet_locations
-from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable
+from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable, variable_label
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -21,13 +22,7 @@ FULL_OREGON_GPKG = DATA_DIR / "preliminary_or_field_geopackage.gpkg"
 OPENET_DIR = DATA_DIR / "openet"
 OPENET_FIELD_COMBINED = OPENET_DIR / "field_combined_long.csv"
 OPENET_HUC_COMBINED = OPENET_DIR / "huc_combined_long.csv"
-AGRIMET_FRIENDLY_NAMES = {
-    "corvallis": "corvallis",
-    "hood river": "hood_river",
-    "klamath falls": "klamath_falls",
-    "ontario": "ontario",
-    "pendleton": "pendleton",
-}
+
 
 class AgrimetAdapter:
     contract = DatasetContract(
@@ -80,6 +75,8 @@ def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
         resolved["station_id"] = match["station_id"]
     if match.get("station_title") and not resolved.get("station_title"):
         resolved["station_title"] = match["station_title"]
+    if match.get("county_name") and not resolved.get("county_name"):
+        resolved["county_name"] = match["county_name"]
 
     canonical_location = match.get("canonical_location")
     if canonical_location and (match.get("supported_local", True) or use_api):
@@ -88,11 +85,24 @@ def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _agrimet_file_prefix(location: str) -> str:
+    """
+    Resolve a location string to the file prefix used in local AgriMet CSVs.
+    Uses the full station metadata via agrimet_station_loader.
+    """
     normalized = normalize_location_text(location)
-    if normalized in AGRIMET_FRIENDLY_NAMES:
-        return AGRIMET_FRIENDLY_NAMES[normalized]
-    available = ", ".join(sorted(AGRIMET_FRIENDLY_NAMES))
-    raise ValueError(f"Unknown AgriMet location: '{location}'. Available: {available}")
+    prefixes = find_local_file_prefixes(normalized)
+
+    if prefixes:
+        for prefix in prefixes:
+            if any(AGRIMET_DIR.glob(f"{prefix}_weather_*.csv")):
+                return prefix
+        return prefixes[0]
+
+    available = ", ".join(supported_agrimet_locations())
+    raise ValueError(
+        f"Unknown AgriMet location: '{location}'. "
+        f"No matching station found in metadata. Available: {available}"
+    )
 
 
 def _require_file(path: Path, hint: str) -> None:
@@ -166,16 +176,50 @@ def _openet_no_data_message(
     return f"No OpenET data found for '{location}'."
 
 
+def _agrimet_no_sensor_message(
+    *,
+    empty_variables: List[str],
+    station_id: str,
+    display_location: str,
+    county_name: str | None = None,
+) -> str:
+    """Build a clear user-facing message when a station has no data for requested sensors."""
+    from .agrimet_station_loader import find_stations_for_county
+    labels = ", ".join(variable_label(v) for v in empty_variables)
+    msg = (
+        f"No data available for {labels} at the {display_location} station ({station_id}). "
+        f"This station may not record these sensors."
+    )
+    if county_name:
+        alternatives = [s for s in find_stations_for_county(county_name) if s != station_id]
+        if alternatives:
+            msg += f" Other stations in this county you could try: {', '.join(alternatives)}."
+    return msg
+
+
 def get_data_files_for_range(location: str, start_date: str, end_date: str) -> List[Path]:
-    prefix = _agrimet_file_prefix(location)
+    """
+    Find all local AgriMet CSV files for a location across a year range.
+    Tries all prefixes returned by the loader before giving up.
+    """
+    normalized = normalize_location_text(location)
+    prefixes = find_local_file_prefixes(normalized)
+    if not prefixes:
+        prefixes = [_agrimet_file_prefix(normalized)]
+
     start_year = int((start_date or "2015-01-01").split("-")[0])
     end_year = int((end_date or "2025-12-31").split("-")[0])
-    files: List[Path] = []
-    for year in range(start_year, end_year + 1):
-        candidate = AGRIMET_DIR / f"{prefix}_weather_{year}.csv"
-        if candidate.exists():
-            files.append(candidate)
-    return files
+
+    for prefix in prefixes:
+        files: List[Path] = []
+        for year in range(start_year, end_year + 1):
+            candidate = AGRIMET_DIR / f"{prefix}_weather_{year}.csv"
+            if candidate.exists():
+                files.append(candidate)
+        if files:
+            return files
+
+    return []
 
 
 def _load_local_agrimet_frame(spec: Dict[str, Any]) -> pd.DataFrame:
@@ -201,8 +245,14 @@ def _load_local_agrimet_frame(spec: Dict[str, Any]) -> pd.DataFrame:
     return df.sort_values("datetime").reset_index(drop=True)
 
 
-def _build_agrimet_result_frame(df: pd.DataFrame, variables: List[str]) -> pd.DataFrame:
+def _build_agrimet_result_frame(
+    df: pd.DataFrame,
+    variables: List[str],
+    spec: Dict[str, Any] | None = None,
+) -> pd.DataFrame:
     result = pd.DataFrame({"datetime": df["datetime"]})
+    empty_variables: List[str] = []
+
     for variable in variables:
         if variable in {"OBM", "AVG_TMP"}:
             result[variable] = ((df["max_temp_f"] + df["min_temp_f"]) / 2).round(2)
@@ -220,21 +270,62 @@ def _build_agrimet_result_frame(df: pd.DataFrame, variables: List[str]) -> pd.Da
             result[variable] = pd.NA
         else:
             raise ValueError(f"Unsupported AgriMet variable: {variable}")
+
+        # Track variables that came back entirely empty (all None/NaN)
+        if variable in result.columns:
+            col = result[variable]
+            is_empty = (
+                col.isna().all()
+                if not pd.api.types.is_numeric_dtype(col)
+                else col.dropna().empty
+            )
+            if is_empty:
+                empty_variables.append(variable)
+
+    # ALL variables empty — raise a clear, user-facing error
+    if empty_variables and len(empty_variables) == len(variables):
+        station_id = str((spec or {}).get("station_id") or "unknown")
+        display_location = str(
+            (spec or {}).get("display_location")
+            or (spec or {}).get("location")
+            or "this station"
+        )
+        county_name = str((spec or {}).get("county_name") or "") or None
+        raise ValueError(
+            _agrimet_no_sensor_message(
+                empty_variables=empty_variables,
+                station_id=station_id,
+                display_location=display_location,
+                county_name=county_name,
+            )
+        )
+
+    # SOME variables empty — warn but continue with the ones that have data
+    if empty_variables:
+        labels = ", ".join(variable_label(v) for v in empty_variables)
+        print(f"⚠️  Warning: No data returned for {labels} — these columns will be blank.")
+
     return result
 
 
 def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
     spec = _normalize_agrimet_spec(spec)
-    df = fetch_agrimet_api_data(
-        location=str(spec.get("station_id") or spec.get("location") or "corvallis").lower(),
-        variables=spec.get("variables", []) or [],
-        start_date=spec.get("start_date") or "2024-01-01",
-        end_date=spec.get("end_date") or "2024-12-31",
-    )
+    display = spec.get("display_location") or spec.get("location") or "this location"
+    try:
+        df = fetch_agrimet_api_data(
+            location=str(spec.get("station_id") or spec.get("location") or "corvallis").lower(),
+            variables=spec.get("variables", []) or [],
+            start_date=spec.get("start_date") or "2024-01-01",
+            end_date=spec.get("end_date") or "2024-12-31",
+        )
+    except ValueError as exc:
+        raise ValueError(f"Could not fetch AgriMet data for {display}: {exc}") from exc
+
     if df.empty:
-        raise ValueError(f"No AgriMet data returned from API for {spec.get('location')}")
+        raise ValueError(f"No AgriMet data returned from API for {display}.")
+
     df = df.rename(columns={"date": "datetime"})
-    result = _build_agrimet_result_frame(df, spec.get("variables", []) or [])
+    result = _build_agrimet_result_frame(df, spec.get("variables", []) or [], spec)
     result = _apply_interval(result, spec.get("interval", "daily"))
     return {"spec": spec, "data": {"records": result.to_dict(orient="records")}}
 
@@ -246,7 +337,7 @@ def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         return _fetch_agrimet_from_api(spec)
 
     df = _load_local_agrimet_frame(spec)
-    result = _build_agrimet_result_frame(df, spec.get("variables", []) or [])
+    result = _build_agrimet_result_frame(df, spec.get("variables", []) or [], spec)
     result = _apply_interval(result, spec.get("interval", "daily"))
     return {"spec": spec, "data": {"records": result.to_dict(orient="records")}}
 
