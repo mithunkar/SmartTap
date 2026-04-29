@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "row_count": 108,
+    "usable_row_count": 108,
+    "nonnull_count": {
+      "NIWR": 108
+    },
+    "all_null_variables": [],
+    "missing_fraction": {
+      "NIWR": 0.0
+    }
+  },
+  "location": "Sherman County",
+  "variables": [
+    "NIWR"
+  ],
+  "start_date": "2015-01-01",
+  "end_date": "2023-12-31",
+  "nonnull_count": {
+    "NIWR": 108
+  },
+  "all_null_variables": [],
+  "usable_row_count": 108
+}

@@ -25,6 +25,27 @@ COLUMN_ALIASES = {
     "longitude": ["longitude", "lon", "lng"],
 }
 
+LOCAL_FILE_PREFIX_OVERRIDES = {
+    "crvo": "corvallis",
+    "hoxo": "hood_river",
+    "kflo": "klamath_falls",
+    "onto": "ontario",
+    "ptro": "pendleton",
+}
+
+FALLBACK_LOCAL_PREFIXES = {
+    "corvallis": ["corvallis", "crvo"],
+    "crvo": ["corvallis", "crvo"],
+    "hood river": ["hood_river", "hoxo"],
+    "hoxo": ["hood_river", "hoxo"],
+    "klamath falls": ["klamath_falls", "kflo"],
+    "kflo": ["klamath_falls", "kflo"],
+    "ontario": ["ontario", "onto"],
+    "onto": ["ontario", "onto"],
+    "pendleton": ["pendleton", "ptro"],
+    "ptro": ["pendleton", "ptro"],
+}
+
 
 def _pick_first_existing(df: pd.DataFrame, candidates: List[str]) -> str | None:
     for name in candidates:
@@ -95,7 +116,7 @@ def load_agrimet_station_metadata() -> pd.DataFrame:
 
 def supported_agrimet_locations() -> List[str]:
     df = load_agrimet_station_metadata()
-    values = set(df["nearest_city"]) | set(df["county"]) | set(df["station_id"])
+    values = set(df["nearest_city"]) | set(df["nearest_city_2"]) | set(df["county"]) | set(df["station_id"])
     values = {value for value in values if value}
     return sorted(values)
 
@@ -162,22 +183,34 @@ def find_local_file_prefixes(location: str) -> List[str]:
     metadata station IDs are codes like crvo or abro. We therefore try city/title
     based prefixes first for local disk lookup.
     """
-    record = find_station_record(location)
+    requested = _normalize_text(location)
+
+    try:
+        record = find_station_record(location)
+    except FileNotFoundError:
+        return list(FALLBACK_LOCAL_PREFIXES.get(requested, []))
     if not record:
-        return []
+        return list(FALLBACK_LOCAL_PREFIXES.get(requested, []))
 
     prefixes: List[str] = []
     nearest_city = _normalize_text(record.get("nearest_city", ""))
+    nearest_city_2 = _clean_city(record.get("nearest_city_2", ""))
     title = _normalize_text(record.get("title", ""))
     station_id = _normalize_text(record.get("station_id", ""))
 
+    if requested and not requested.endswith(" county"):
+        prefixes.append(requested.replace(" ", "_"))
+    if station_id:
+        prefixes.append(station_id)
+    if station_id in LOCAL_FILE_PREFIX_OVERRIDES:
+        prefixes.append(LOCAL_FILE_PREFIX_OVERRIDES[station_id])
     if nearest_city:
         prefixes.append(nearest_city.replace(" ", "_"))
+    if nearest_city_2:
+        prefixes.append(nearest_city_2.replace(",", "").replace(" ", "_"))
     if title:
         title_prefix = title.split(" agrimet")[0].strip().replace(",", "").replace(" ", "_")
         prefixes.append(title_prefix)
-    if station_id:
-        prefixes.append(station_id)
 
     seen = set()
     ordered: List[str] = []

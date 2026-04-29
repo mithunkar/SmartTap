@@ -11,6 +11,7 @@ from core.contracts import (
 )
 from core.crop_utils import canonicalize_crop_name, crop_name_variants, matching_crop_codes
 from core.data_fetcher import get_dataset_adapter
+from core.agrimet_station_loader import find_local_file_prefixes
 from core.location_resolver import resolve_agrimet_location
 from core.validation import validate_and_fix_spec
 from core.variable_registry import normalize_variable, variable_label
@@ -130,6 +131,11 @@ def test_resolve_agrimet_location_uses_city_centroid_for_salem():
     assert salem is not None
     assert salem["station_id"] == "subo"
     assert salem["station_resolution_mode"] == "centroid_nearest_station"
+
+
+def test_find_local_file_prefixes_prioritizes_bundled_dataset_names():
+    assert find_local_file_prefixes("corvallis")[0] == "corvallis"
+    assert "corvallis" in find_local_file_prefixes("crvo")
 
 
 def test_validate_and_fix_spec_normalizes_queryspec_shape():

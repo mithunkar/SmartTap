@@ -10,7 +10,8 @@ from .contracts import DatasetAdapter, DatasetContract, QuerySpec
 from .agrimet_api import fetch_agrimet_api_data
 from .agrimet_station_loader import find_local_file_prefixes
 from .location_crop_query import LocationCropQuery
-from .location_resolver import normalize_location_text, resolve_agrimet_location, supported_agrimet_locations
+from .location_resolver import normalize_location_text, resolve_agrimet_location
+from . import location_resolver as _location_resolver
 from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable, variable_label
 
 
@@ -95,8 +96,6 @@ def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
         resolved["station_title"] = match["station_title"]
     if match.get("county_name") and not resolved.get("county_name"):
         resolved["county_name"] = match["county_name"]
-    if match.get("county_name") and not resolved.get("county_name"):
-        resolved["county_name"] = match["county_name"]
     if match.get("station_resolution_mode"):
         resolved["station_resolution_mode"] = match["station_resolution_mode"]
     resolved["supported_local"] = bool(match.get("supported_local", True))
@@ -122,7 +121,7 @@ def _agrimet_file_prefix(location: str) -> str:
                 return prefix
         return prefixes[0]
 
-    available = ", ".join(supported_agrimet_locations())
+    available = ", ".join(_location_resolver.supported_agrimet_locations())
     raise ValueError(
         f"Unknown AgriMet location: '{location}'. "
         f"No matching station found in metadata. Available: {available}"
