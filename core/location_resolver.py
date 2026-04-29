@@ -5,11 +5,15 @@ import math
 import sqlite3
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, TypedDict
+from typing import List, TypedDict
 
 import pandas as pd
 
-from .agrimet_api import LOCATION_ALIASES
+from .agrimet_station_loader import (
+    find_local_file_prefixes,
+    find_station_record,
+    supported_agrimet_locations as _loader_supported_locations,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -40,7 +44,8 @@ class AgrimetLocationResolution(TypedDict, total=False):
 
 
 def supported_agrimet_locations() -> List[str]:
-    return sorted(AGRIMET_FRIENDLY_NAMES.keys())
+    """Return all known AgriMet locations from the full station metadata CSV."""
+    return _loader_supported_locations()
 
 
 def normalize_location_text(location: str) -> str:
@@ -74,15 +79,6 @@ def _haversine_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -
     a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
     c = 2 * math.asin(math.sqrt(a))
     return 6371.0 * c
-
-
-@lru_cache(maxsize=1)
-def _load_agrimet_station_metadata() -> List[Dict[str, str]]:
-    if not AGRIMET_METADATA_PATH.exists():
-        return []
-
-    with AGRIMET_METADATA_PATH.open(newline="", encoding="utf-8") as handle:
-        return [{key: str(value or "").strip() for key, value in row.items()} for row in csv.DictReader(handle)]
 
 
 @lru_cache(maxsize=1)
