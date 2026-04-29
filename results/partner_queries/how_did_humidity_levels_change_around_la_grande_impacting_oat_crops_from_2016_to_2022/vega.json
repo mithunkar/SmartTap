@@ -1,0 +1,31 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Average Humidity (percent) near La Grande",
+  "data": {
+    "values": [
+      {
+        "message": "No usable AgriMet values were available for Average Humidity (percent) at Imbler, Oregon AgriMet Weather Station (imbo) for 2016-01-01 to 2022-12-31."
+      }
+    ]
+  },
+  "mark": {
+    "type": "text",
+    "align": "center",
+    "baseline": "middle",
+    "fontSize": 18,
+    "fontWeight": "bold"
+  },
+  "encoding": {
+    "x": {
+      "value": 320
+    },
+    "y": {
+      "value": 140
+    },
+    "text": {
+      "field": "message"
+    }
+  },
+  "width": 640,
+  "height": 280
+}

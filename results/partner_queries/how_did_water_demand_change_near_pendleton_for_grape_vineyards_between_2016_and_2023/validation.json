@@ -1,0 +1,27 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "row_count": 96,
+    "usable_row_count": 96,
+    "nonnull_count": {
+      "ETa": 96
+    },
+    "all_null_variables": [],
+    "missing_fraction": {
+      "ETa": 0.0
+    }
+  },
+  "location": "Pendleton",
+  "variables": [
+    "ETa"
+  ],
+  "start_date": "2016-01-01",
+  "end_date": "2023-12-31",
+  "nonnull_count": {
+    "ETa": 96
+  },
+  "all_null_variables": [],
+  "usable_row_count": 96
+}

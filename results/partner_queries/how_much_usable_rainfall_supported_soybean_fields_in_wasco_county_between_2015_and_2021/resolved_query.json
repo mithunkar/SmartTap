@@ -1,0 +1,63 @@
+{
+  "prompt": "How much usable rainfall supported soybean fields in Wasco County between 2015 and 2021?",
+  "spec": {
+    "task": "statistical_summary",
+    "dataset": "openet",
+    "location": "Wasco County",
+    "location_type": "county",
+    "variables": [
+      "Prz"
+    ],
+    "start_date": "2015-01-01",
+    "end_date": "2021-12-31",
+    "statistics": [
+      "sum"
+    ],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "display_location": "Wasco County",
+    "chart_type": "line",
+    "interval": "monthly",
+    "openet_geo": "location",
+    "crop_filter": "Soybean",
+    "secondary_variables": [
+      "Prz"
+    ],
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "openet"
+    ],
+    "evidence_pattern": "stat_snapshot",
+    "chart_package": "stat_snapshot",
+    "aggregation": "mean",
+    "no_data_reason": "No OpenET fields matched crop 'Soybean' in Wasco County for 2015-01-01 to 2021-12-31."
+  },
+  "summary": {
+    "task": "statistical_summary",
+    "dataset": "openet",
+    "location": "Wasco County",
+    "resolved_location": "Wasco County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "Prz",
+    "variables_list": [
+      "Prz"
+    ],
+    "variable_labels": [
+      "Usable Rainfall (in)"
+    ],
+    "date_range": "2015-01-01 to 2021-12-31",
+    "source_datasets": [
+      "openet"
+    ],
+    "status": "no_data",
+    "crop_filter": "Soybean",
+    "no_data_reason": "No OpenET fields matched crop 'Soybean' in Wasco County for 2015-01-01 to 2021-12-31.",
+    "row_count": 0,
+    "usable_row_count": 0,
+    "evidence_pattern": "stat_snapshot",
+    "chart_package": "stat_snapshot"
+  }
+}

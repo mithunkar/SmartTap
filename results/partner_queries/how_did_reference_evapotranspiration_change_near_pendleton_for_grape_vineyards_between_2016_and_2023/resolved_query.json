@@ -1,0 +1,56 @@
+{
+  "prompt": "How did reference evapotranspiration change near Pendleton for grape vineyards between 2016 and 2023?",
+  "spec": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "pendleton",
+    "variables": [
+      "PEN_ET"
+    ],
+    "start_date": "2016-01-01",
+    "end_date": "2023-12-31",
+    "interval": "daily",
+    "chart_type": "line",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "location_type": "city",
+    "display_location": "Pendleton",
+    "station_id": "ptro",
+    "crop_filter": "Grape",
+    "secondary_variables": [
+      "PEN_ET"
+    ],
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "Pendleton",
+    "resolved_location": "pendleton",
+    "location_type": "city",
+    "station_id": "ptro",
+    "station_title": null,
+    "variables": "PEN_ET",
+    "variables_list": [
+      "PEN_ET"
+    ],
+    "variable_labels": [
+      "Reference Evapotranspiration (mm)"
+    ],
+    "date_range": "2016-01-01 to 2023-12-31",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "crop_filter": "Grape",
+    "row_count": 2922,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

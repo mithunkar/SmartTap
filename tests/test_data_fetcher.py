@@ -8,11 +8,14 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pandas as pd
+
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.data_fetcher import fetch_data, fetch_agrimet_data, fetch_openet_data, resolve_agrimet_location
 from core.location_crop_query import LocationCropQuery
+from core.validation import validate_payload
 
 
 class TestDataFetcher(unittest.TestCase):
@@ -164,7 +167,7 @@ class TestDataFetcher(unittest.TestCase):
         self.assertEqual(len(records), 3, f"Expected 3 records, got {len(records)}")
 
     def test_openet_crop_filter_empty_result_has_specific_error_message(self):
-        """Crop-filtered empty results should mention the crop instead of implying the whole location has no data."""
+        """Crop-filtered empty results should surface a no-data payload instead of raising."""
 
         class FakeLocationCropQuery:
             def __init__(self, *args, **kwargs):
@@ -186,11 +189,11 @@ class TestDataFetcher(unittest.TestCase):
         }
 
         with patch("core.data_fetcher.LocationCropQuery", FakeLocationCropQuery):
-            with self.assertRaises(ValueError) as exc:
-                fetch_openet_data(spec)
+            payload = fetch_openet_data(spec)
 
+        self.assertEqual(payload["data"]["records"], [])
         self.assertEqual(
-            str(exc.exception),
+            payload["spec"]["no_data_reason"],
             "No OpenET variable rows were found for Cucumber fields near Corvallis for 2016-01-01 to 2024-12-31.",
         )
 
@@ -217,13 +220,62 @@ class TestDataFetcher(unittest.TestCase):
         }
 
         with patch("core.data_fetcher.LocationCropQuery", FakeLocationCropQuery):
-            with self.assertRaises(ValueError) as exc:
-                fetch_openet_data(spec)
+            payload = fetch_openet_data(spec)
 
+        self.assertEqual(payload["data"]["records"], [])
         self.assertEqual(
-            str(exc.exception),
+            payload["spec"]["no_data_reason"],
             "No OpenET fields matched crop 'Cucumber' near Corvallis for 2016-01-01 to 2024-12-31.",
         )
+
+    def test_agrimet_pen_et_uses_api_fallback_even_for_local_station(self):
+        spec = {
+            "dataset": "agrimet",
+            "location": "pendleton",
+            "display_location": "Pendleton",
+            "variables": ["PEN_ET"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-01-03",
+        }
+
+        fake_api = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+                "datetime": pd.to_datetime(["2024-01-01", "2024-01-02", "2024-01-03"]),
+                "et": [1.1, 1.2, 1.3],
+                "max_temp_f": [50.0, 51.0, 52.0],
+                "min_temp_f": [32.0, 33.0, 34.0],
+                "daily_precip_in": [0.0, 0.0, 0.0],
+                "solar_langley": [10.0, 11.0, 12.0],
+                "wind_speed_mph": [4.0, 4.5, 5.0],
+            }
+        )
+
+        with patch("core.data_fetcher.fetch_agrimet_api_data", return_value=fake_api) as mocked_api:
+            payload = fetch_agrimet_data(spec)
+
+        mocked_api.assert_called_once()
+        self.assertEqual(payload["spec"]["fetch_mode"], "api_fallback")
+        self.assertEqual(payload["spec"]["station_id"], "ptro")
+        self.assertEqual(payload["data"]["records"][0]["PEN_ET"], 1.1)
+
+    def test_validate_payload_marks_all_null_requested_variables_unusable(self):
+        payload = {
+            "spec": {"variables": ["AVG_HUM"], "display_location": "La Grande"},
+            "data": {
+                "records": [
+                    {"datetime": "2024-01-01", "AVG_HUM": None},
+                    {"datetime": "2024-01-02", "AVG_HUM": None},
+                ]
+            },
+        }
+
+        report = validate_payload(payload)
+
+        self.assertFalse(report["ok"])
+        self.assertEqual(report["nonnull_count"], {"AVG_HUM": 0})
+        self.assertEqual(report["all_null_variables"], ["AVG_HUM"])
+        self.assertEqual(report["usable_row_count"], 0)
 
     def test_openet_county_lookup_accepts_county_suffix(self):
         """County-based OpenET queries should work with or without a trailing 'County' suffix."""

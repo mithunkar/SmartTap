@@ -1,0 +1,70 @@
+{
+  "prompt": "How did wind patterns change near Madras affecting carrot farms between 2014 and 2021?",
+  "spec": {
+    "partner_query_id": "workbook_row_19",
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "madras",
+    "display_location": "Madras",
+    "location_type": "city",
+    "variables": [
+      "AV_WSPD"
+    ],
+    "crop_filter": "Carrot",
+    "start_date": "2014-01-01",
+    "end_date": "2021-12-31",
+    "interval": "daily",
+    "evidence_pattern": "trend_single",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "station_id": "mrso",
+    "confirmation_status": "confirmed",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [
+      "Resolved Madras to Madras, Oregon AgriMet Weather Station (mrso) via nearest_city."
+    ],
+    "station_title": "Madras, Oregon AgriMet Weather Station",
+    "station_resolution_mode": "nearest_city",
+    "supported_local": false,
+    "chart_type": "line",
+    "secondary_variables": [
+      "AV_WSPD"
+    ],
+    "chart_package": "single_trend",
+    "county_name": "Jefferson",
+    "fetch_mode": "api_fallback",
+    "no_data_reason": "No usable AgriMet values were available for Average Wind Speed (mph) at Madras, Oregon AgriMet Weather Station (mrso) for 2014-01-01 to 2021-12-31."
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "Madras",
+    "resolved_location": "madras",
+    "location_type": "city",
+    "station_id": "mrso",
+    "station_title": "Madras, Oregon AgriMet Weather Station",
+    "variables": "AV_WSPD",
+    "variables_list": [
+      "AV_WSPD"
+    ],
+    "variable_labels": [
+      "Average Wind Speed (mph)"
+    ],
+    "date_range": "2014-01-01 to 2021-12-31",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "status": "no_data",
+    "crop_filter": "Carrot",
+    "fetch_mode": "api_fallback",
+    "station_resolution_mode": "nearest_city",
+    "no_data_reason": "No usable AgriMet values were available for Average Wind Speed (mph) at Madras, Oregon AgriMet Weather Station (mrso) for 2014-01-01 to 2021-12-31.",
+    "row_count": 0,
+    "usable_row_count": 0,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

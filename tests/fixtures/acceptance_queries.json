@@ -185,7 +185,7 @@
         "evidence_pattern": "trend_single",
         "source_datasets": ["openet"]
       },
-      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
+      "expected_final": {"status": "no_data", "dataset": "openet", "evidence_pattern": "trend_single"}
     },
     {
       "id": "workbook_row_11",
@@ -320,10 +320,10 @@
       "prompt": "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?",
       "raw_spec": {"partner_query_id": "workbook_row_17"},
       "expected_initial": {
-        "status": "clarification",
+        "status": "confirmation",
         "task": "visualize_timeseries",
         "dataset": "agrimet",
-        "location": "Medford",
+        "location": "medford",
         "display_location": "Medford",
         "location_type": "city",
         "variables": ["AVG_TMP"],
@@ -333,18 +333,19 @@
         "interval": "daily",
         "evidence_pattern": "trend_single",
         "source_datasets": ["agrimet"],
-        "clarification_fields": ["station"]
-      }
+        "station_id": "mdfo"
+      },
+      "expected_final": {"status": "success", "dataset": "agrimet", "evidence_pattern": "trend_single"}
     },
     {
       "id": "workbook_row_18",
       "prompt": "How did humidity levels change around La Grande impacting oat crops from 2016 to 2022?",
       "raw_spec": {"partner_query_id": "workbook_row_18"},
       "expected_initial": {
-        "status": "clarification",
+        "status": "confirmation",
         "task": "visualize_timeseries",
         "dataset": "agrimet",
-        "location": "La Grande",
+        "location": "la grande",
         "display_location": "La Grande",
         "location_type": "city",
         "variables": ["AVG_HUM"],
@@ -354,18 +355,19 @@
         "interval": "daily",
         "evidence_pattern": "trend_single",
         "source_datasets": ["agrimet"],
-        "clarification_fields": ["station"]
-      }
+        "station_id": "imbo"
+      },
+      "expected_final": {"status": "no_data", "dataset": "agrimet", "evidence_pattern": "trend_single"}
     },
     {
       "id": "workbook_row_19",
       "prompt": "How did wind patterns change near Madras affecting carrot farms between 2014 and 2021?",
       "raw_spec": {"partner_query_id": "workbook_row_19"},
       "expected_initial": {
-        "status": "clarification",
+        "status": "confirmation",
         "task": "visualize_timeseries",
         "dataset": "agrimet",
-        "location": "Madras",
+        "location": "madras",
         "display_location": "Madras",
         "location_type": "city",
         "variables": ["AV_WSPD"],
@@ -375,18 +377,19 @@
         "interval": "daily",
         "evidence_pattern": "trend_single",
         "source_datasets": ["agrimet"],
-        "clarification_fields": ["station"]
-      }
+        "station_id": "mrso"
+      },
+      "expected_final": {"status": "no_data", "dataset": "agrimet", "evidence_pattern": "trend_single"}
     },
     {
       "id": "workbook_row_20",
       "prompt": "How did crop growth characteristics change for grass seed near Salem between 2019 and 2023?",
       "raw_spec": {"partner_query_id": "workbook_row_20"},
       "expected_initial": {
-        "status": "clarification",
+        "status": "confirmation",
         "task": "visualize_timeseries",
         "dataset": "agrimet",
-        "location": "Salem",
+        "location": "salem",
         "display_location": "Salem",
         "location_type": "city",
         "variables": ["Kc"],
@@ -396,8 +399,9 @@
         "interval": "daily",
         "evidence_pattern": "trend_single",
         "source_datasets": ["agrimet"],
-        "clarification_fields": ["station"]
-      }
+        "station_id": "subo"
+      },
+      "expected_final": {"status": "no_data", "dataset": "agrimet", "evidence_pattern": "trend_single"}
     }
   ]
 }

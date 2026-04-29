@@ -1,0 +1,60 @@
+{
+  "prompt": "what crops are grown in Wasco County",
+  "spec": {
+    "task": "summarize_crops",
+    "location": "Wasco County",
+    "location_type": "county",
+    "year": 2024,
+    "variables": [
+      "CROP"
+    ],
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "display_location": "Wasco County",
+    "dataset": "openet",
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "openet"
+    ],
+    "secondary_variables": [],
+    "group_by": [
+      "CROP"
+    ],
+    "split_by": "CROP",
+    "evidence_pattern": "ranking_categories",
+    "chart_package": [
+      "ranking_bar",
+      "distribution_companion"
+    ]
+  },
+  "summary": {
+    "task": "summarize_crops",
+    "dataset": "openet",
+    "location": "Wasco County",
+    "resolved_location": "Wasco County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "CROP",
+    "variables_list": [
+      "CROP"
+    ],
+    "variable_labels": [
+      "Crop Category"
+    ],
+    "date_range": "2024",
+    "source_datasets": [
+      "openet"
+    ],
+    "year": 2024,
+    "total_fields": 3879,
+    "total_crops": 29,
+    "evidence_pattern": "ranking_categories",
+    "chart_package": [
+      "ranking_bar",
+      "distribution_companion"
+    ]
+  }
+}

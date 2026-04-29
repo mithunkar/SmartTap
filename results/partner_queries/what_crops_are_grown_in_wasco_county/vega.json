@@ -1,0 +1,123 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Top 15 Crops in Wasco County (2024)",
+  "width": 600,
+  "height": 400,
+  "data": {
+    "values": [
+      {
+        "Crop": "Other Crops",
+        "Group": "Other Crop",
+        "Field Count": 7
+      },
+      {
+        "Crop": "Spring Wheat",
+        "Group": "Grain",
+        "Field Count": 7
+      },
+      {
+        "Crop": "Grapes",
+        "Group": "Vineyard",
+        "Field Count": 9
+      },
+      {
+        "Crop": "Pears",
+        "Group": "Tree Fruit",
+        "Field Count": 10
+      },
+      {
+        "Crop": "Evergreen Forest",
+        "Group": "Forest",
+        "Field Count": 13
+      },
+      {
+        "Crop": "Peaches",
+        "Group": "Tree Fruit",
+        "Field Count": 19
+      },
+      {
+        "Crop": "Triticale",
+        "Group": "Grain",
+        "Field Count": 26
+      },
+      {
+        "Crop": "Other Hay/Non Alfalfa",
+        "Group": "Hay/Forage",
+        "Field Count": 27
+      },
+      {
+        "Crop": "Alfalfa",
+        "Group": "Hay/Forage",
+        "Field Count": 27
+      },
+      {
+        "Crop": "Barley",
+        "Group": "Grain",
+        "Field Count": 27
+      },
+      {
+        "Crop": "Cherries",
+        "Group": "Tree Fruit",
+        "Field Count": 373
+      },
+      {
+        "Crop": "Fallow/Idle Cropland",
+        "Group": "Fallow",
+        "Field Count": 414
+      },
+      {
+        "Crop": "Winter Wheat",
+        "Group": "Grain",
+        "Field Count": 474
+      },
+      {
+        "Crop": "Shrubland",
+        "Group": "Rangeland",
+        "Field Count": 592
+      },
+      {
+        "Crop": "Grassland/Pasture",
+        "Group": "Pasture/Range",
+        "Field Count": 1815
+      }
+    ]
+  },
+  "mark": "bar",
+  "encoding": {
+    "y": {
+      "field": "Crop",
+      "type": "nominal",
+      "sort": "-x",
+      "title": null
+    },
+    "x": {
+      "field": "Field Count",
+      "type": "quantitative",
+      "title": "Number of Fields"
+    },
+    "color": {
+      "field": "Group",
+      "type": "nominal",
+      "title": "Crop Group",
+      "scale": {
+        "scheme": "category20"
+      }
+    },
+    "tooltip": [
+      {
+        "field": "Crop",
+        "type": "nominal"
+      },
+      {
+        "field": "Group",
+        "type": "nominal",
+        "title": "Group"
+      },
+      {
+        "field": "Field Count",
+        "type": "quantitative",
+        "title": "Fields"
+      }
+    ]
+  }
+}

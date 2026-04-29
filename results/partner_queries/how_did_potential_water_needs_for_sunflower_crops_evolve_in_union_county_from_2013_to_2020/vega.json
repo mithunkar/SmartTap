@@ -1,0 +1,522 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Potential Crop Water Demand for Sunflower Fields near Union County (County)",
+  "data": {
+    "values": [
+      {
+        "datetime": "2013-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.7088811864884129
+      },
+      {
+        "datetime": "2013-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8339258226602421
+      },
+      {
+        "datetime": "2013-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.49590440097536
+      },
+      {
+        "datetime": "2013-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.021198280641235
+      },
+      {
+        "datetime": "2013-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.5359802810839627
+      },
+      {
+        "datetime": "2013-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.119362742796572
+      },
+      {
+        "datetime": "2013-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.2993262910111984
+      },
+      {
+        "datetime": "2013-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.5977153616176604
+      },
+      {
+        "datetime": "2013-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.3731888352574868
+      },
+      {
+        "datetime": "2013-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.0164672762967297
+      },
+      {
+        "datetime": "2013-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8304091159877576
+      },
+      {
+        "datetime": "2013-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.4330829751147286
+      },
+      {
+        "datetime": "2014-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.7370756313466384
+      },
+      {
+        "datetime": "2014-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.9563380108835895
+      },
+      {
+        "datetime": "2014-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.089996129928176
+      },
+      {
+        "datetime": "2014-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.677712536822535
+      },
+      {
+        "datetime": "2014-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.186573299328249
+      },
+      {
+        "datetime": "2014-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.514240854311998
+      },
+      {
+        "datetime": "2014-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 6.642524839371908
+      },
+      {
+        "datetime": "2014-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.493886493090978
+      },
+      {
+        "datetime": "2014-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.974039431041922
+      },
+      {
+        "datetime": "2014-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.9441330411830104
+      },
+      {
+        "datetime": "2014-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8653656675743249
+      },
+      {
+        "datetime": "2014-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.9875333433885596
+      },
+      {
+        "datetime": "2015-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8013920331523781
+      },
+      {
+        "datetime": "2015-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.5123260676274641
+      },
+      {
+        "datetime": "2015-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.9359631431544129
+      },
+      {
+        "datetime": "2015-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 3.117852862789286
+      },
+      {
+        "datetime": "2015-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.12077136995888
+      },
+      {
+        "datetime": "2015-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.596747096856083
+      },
+      {
+        "datetime": "2015-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.24980941605707
+      },
+      {
+        "datetime": "2015-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.529006795228743
+      },
+      {
+        "datetime": "2015-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.0158739979839027
+      },
+      {
+        "datetime": "2015-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8584601377745728
+      },
+      {
+        "datetime": "2015-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.0357456312707518
+      },
+      {
+        "datetime": "2015-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8375941242906291
+      },
+      {
+        "datetime": "2016-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8893784291561818
+      },
+      {
+        "datetime": "2016-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.4063634556479094
+      },
+      {
+        "datetime": "2016-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.1366980924980092
+      },
+      {
+        "datetime": "2016-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 3.4229102047189297
+      },
+      {
+        "datetime": "2016-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.194658699612462
+      },
+      {
+        "datetime": "2016-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.395774429642321
+      },
+      {
+        "datetime": "2016-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.265345494396828
+      },
+      {
+        "datetime": "2016-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 3.386274432107644
+      },
+      {
+        "datetime": "2016-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.229653519613271
+      },
+      {
+        "datetime": "2016-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.6055744175993623
+      },
+      {
+        "datetime": "2016-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.2051560604162446
+      },
+      {
+        "datetime": "2016-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.4208980010778366
+      },
+      {
+        "datetime": "2017-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.3971519401602942
+      },
+      {
+        "datetime": "2017-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.248278594611189
+      },
+      {
+        "datetime": "2017-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.293456058583597
+      },
+      {
+        "datetime": "2017-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 3.3057296368748035
+      },
+      {
+        "datetime": "2017-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.981393852378678
+      },
+      {
+        "datetime": "2017-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.746136807120635
+      },
+      {
+        "datetime": "2017-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 6.149116975114601
+      },
+      {
+        "datetime": "2017-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 3.166863164317105
+      },
+      {
+        "datetime": "2017-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.20986164239652
+      },
+      {
+        "datetime": "2017-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.5918907036990362
+      },
+      {
+        "datetime": "2017-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.244783796736128
+      },
+      {
+        "datetime": "2017-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.501629958007422
+      },
+      {
+        "datetime": "2018-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.0767891544535195
+      },
+      {
+        "datetime": "2018-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.9594107689770002
+      },
+      {
+        "datetime": "2018-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.751874080716642
+      },
+      {
+        "datetime": "2018-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.756504239460287
+      },
+      {
+        "datetime": "2018-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.537507868616872
+      },
+      {
+        "datetime": "2018-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.3864663537654796
+      },
+      {
+        "datetime": "2018-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 6.75528583094321
+      },
+      {
+        "datetime": "2018-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.006039779776441
+      },
+      {
+        "datetime": "2018-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.000132844680098
+      },
+      {
+        "datetime": "2018-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.298019250768445
+      },
+      {
+        "datetime": "2018-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8721772573864426
+      },
+      {
+        "datetime": "2018-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.6880961128869335
+      },
+      {
+        "datetime": "2019-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8308324465034875
+      },
+      {
+        "datetime": "2019-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.6059825503784397
+      },
+      {
+        "datetime": "2019-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.2499228429406621
+      },
+      {
+        "datetime": "2019-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.606827777516665
+      },
+      {
+        "datetime": "2019-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.30862190484899
+      },
+      {
+        "datetime": "2019-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 6.173975468852719
+      },
+      {
+        "datetime": "2019-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 6.795694161024063
+      },
+      {
+        "datetime": "2019-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.612929634848807
+      },
+      {
+        "datetime": "2019-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.1394662783837495
+      },
+      {
+        "datetime": "2019-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.9312815726846713
+      },
+      {
+        "datetime": "2019-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.3442265889186962
+      },
+      {
+        "datetime": "2019-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.7683037509531222
+      },
+      {
+        "datetime": "2020-01-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8939692760162974
+      },
+      {
+        "datetime": "2020-02-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.0676749559329795
+      },
+      {
+        "datetime": "2020-03-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8846549075535617
+      },
+      {
+        "datetime": "2020-04-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.238168209934078
+      },
+      {
+        "datetime": "2020-05-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.519143234297748
+      },
+      {
+        "datetime": "2020-06-01T00:00:00",
+        "variable": "ETDa",
+        "value": 5.4479413229078935
+      },
+      {
+        "datetime": "2020-07-01T00:00:00",
+        "variable": "ETDa",
+        "value": 7.475414497619484
+      },
+      {
+        "datetime": "2020-08-01T00:00:00",
+        "variable": "ETDa",
+        "value": 4.949621459037723
+      },
+      {
+        "datetime": "2020-09-01T00:00:00",
+        "variable": "ETDa",
+        "value": 2.512741442533419
+      },
+      {
+        "datetime": "2020-10-01T00:00:00",
+        "variable": "ETDa",
+        "value": 1.5433809316700238
+      },
+      {
+        "datetime": "2020-11-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.8094928055804798
+      },
+      {
+        "datetime": "2020-12-01T00:00:00",
+        "variable": "ETDa",
+        "value": 0.634597320520967
+      }
+    ]
+  },
+  "mark": {
+    "type": "line"
+  },
+  "encoding": {
+    "x": {
+      "field": "datetime",
+      "type": "temporal",
+      "title": "Date/Time"
+    },
+    "y": {
+      "field": "value",
+      "type": "quantitative",
+      "title": "Value"
+    },
+    "color": {
+      "field": "variable",
+      "type": "nominal",
+      "title": "Variable"
+    },
+    "tooltip": [
+      {
+        "field": "datetime",
+        "type": "temporal"
+      },
+      {
+        "field": "variable",
+        "type": "nominal"
+      },
+      {
+        "field": "value",
+        "type": "quantitative"
+      }
+    ]
+  }
+}

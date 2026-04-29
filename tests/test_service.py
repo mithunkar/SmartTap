@@ -295,6 +295,52 @@ def test_incomplete_query_returns_clarification_request():
     assert "Average Temperature (deg F)" in result["clarification_prompt"]
 
 
+def test_nonlocal_agrimet_city_now_confirms_with_resolved_station():
+    result = process_query(
+        "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?",
+        spec={"partner_query_id": "service_medford_station_resolution"},
+    )
+
+    assert result["success"] is False
+    assert result["needs_confirmation"] is True
+    assert result["spec"]["station_id"] == "mdfo"
+    assert "Station:" in result["confirmation_prompt"]
+
+
+def test_visualization_no_data_still_writes_partner_artifacts(monkeypatch):
+    def fake_fetch_data(spec):
+        return {
+            "spec": {**spec, "no_data_reason": "No OpenET fields matched crop 'Soybean' in Wasco County for 2015-01-01 to 2021-12-31."},
+            "data": {"records": []},
+        }
+
+    monkeypatch.setattr("smarttap_service.fetch_data", fake_fetch_data)
+
+    _, final = _run_confirmed_query(
+        "How much usable rainfall supported soybean fields in Wasco County between 2015 and 2021?",
+        {
+            "partner_query_id": "service_openet_no_data",
+            "task": "visualize_timeseries",
+            "dataset": "openet",
+            "location": "Wasco County",
+            "display_location": "Wasco County",
+            "location_type": "county",
+            "variables": ["Prz"],
+            "crop_filter": "Soybean",
+            "start_date": "2015-01-01",
+            "end_date": "2021-12-31",
+            "interval": "monthly",
+            "chart_type": "line",
+        },
+    )
+
+    assert final["summary"]["status"] == "no_data"
+    assert final["summary"]["row_count"] == 0
+    assert "matched crop" in final["summary"]["no_data_reason"].lower()
+    assert list(final["data"].columns) == ["datetime", "Prz"]
+    _assert_partner_artifacts(final)
+
+
 def test_clarification_reply_preserves_corvallis_display_case_until_confirmation():
     pending_spec = {
         "task": "visualize_timeseries",

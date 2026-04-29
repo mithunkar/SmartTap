@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import sqlite3
-import os
 import re
 from pathlib import Path
 from typing import Any, Dict, List, cast
@@ -99,6 +98,7 @@ OPENET_COUNTIES, OPENET_CITIES = _load_openet_location_candidates()
 def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     spec = payload.get("spec", {})
     records = (payload.get("data") or {}).get("records") or []
+    requested_variables = [str(value) for value in spec.get("variables") or []]
     report = {
         "ok": True,
         "errors": [],
@@ -126,11 +126,35 @@ def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     if invalid:
         report["warnings"].append(f"{invalid} rows have invalid datetime values.")
 
-    numeric_cols = [column for column in df.columns if column != "datetime"]
+    tracked_cols = [column for column in requested_variables if column in df.columns]
+    if not tracked_cols:
+        tracked_cols = [
+            column
+            for column in df.columns
+            if column != "datetime" and pd.api.types.is_numeric_dtype(df[column])
+        ]
+
+    usable_mask = pd.Series(True, index=df.index)
+    if tracked_cols:
+        usable_mask = df[tracked_cols].notna().any(axis=1)
+
+    nonnull_count = {column: int(df[column].notna().sum()) for column in tracked_cols}
+    all_null_variables = [column for column in tracked_cols if nonnull_count.get(column, 0) == 0]
+
     report["summary"]["row_count"] = len(df)
+    report["summary"]["usable_row_count"] = int(usable_mask.sum())
+    report["summary"]["nonnull_count"] = nonnull_count
+    report["summary"]["all_null_variables"] = all_null_variables
     report["summary"]["missing_fraction"] = (
-        df[numeric_cols].isna().mean().to_dict() if numeric_cols else {}
+        df[tracked_cols].isna().mean().to_dict() if tracked_cols else {}
     )
+    report["nonnull_count"] = nonnull_count
+    report["all_null_variables"] = all_null_variables
+    report["usable_row_count"] = int(usable_mask.sum())
+
+    if tracked_cols and int(usable_mask.sum()) == 0:
+        report["errors"].append("No usable values were returned for the requested variables.")
+
     report["ok"] = not report["errors"]
     return report
 
@@ -416,9 +440,9 @@ def collect_clarification_fields(spec: QuerySpec) -> List[str]:
     if task == "summarize_crops" and not spec.get("location"):
         missing.append("location")
 
-    if spec.get("dataset") == "agrimet" and spec.get("location") and os.getenv("AGRIMET_USE_API") != "1":
-        resolution = resolve_agrimet_location(str(spec.get("display_location") or spec.get("location")), local_only=True)
-        if not resolution or not resolution.get("supported_local", True):
+    if spec.get("dataset") == "agrimet" and spec.get("location"):
+        resolution = resolve_agrimet_location(str(spec.get("display_location") or spec.get("location")), local_only=False)
+        if not resolution:
             missing.append("station")
 
     seen = set()
@@ -499,24 +523,31 @@ def _apply_location_resolution(fixed: QuerySpec) -> QuerySpec:
         fixed["display_location"] = display_location_name(str(fixed["display_location"]), location_type)
         return fixed
 
-    local_only = os.getenv("AGRIMET_USE_API") != "1"
-    resolution = resolve_agrimet_location(str(fixed["display_location"]), local_only=local_only)
+    resolution = resolve_agrimet_location(str(fixed["display_location"]), local_only=False)
     if not resolution:
         return fixed
 
     fixed["display_location"] = resolution.get("display_location") or fixed["display_location"]
-    if resolution.get("supported_local", True) or not local_only:
-        if resolution.get("canonical_location"):
-            fixed["location"] = resolution["canonical_location"]
-        if resolution.get("station_id"):
-            fixed["station_id"] = resolution["station_id"]
-        if resolution.get("station_title"):
-            fixed["station_title"] = resolution["station_title"]
-    else:
-        notes = list(fixed.get("notes") or [])
+    if resolution.get("canonical_location"):
+        fixed["location"] = resolution["canonical_location"]
+    if resolution.get("station_id"):
+        fixed["station_id"] = resolution["station_id"]
+    if resolution.get("station_title"):
+        fixed["station_title"] = resolution["station_title"]
+    if resolution.get("station_resolution_mode"):
+        fixed["station_resolution_mode"] = resolution["station_resolution_mode"]  # type: ignore[assignment]
+    fixed["supported_local"] = bool(resolution.get("supported_local", True))  # type: ignore[assignment]
+
+    notes = list(fixed.get("notes") or [])
+    if resolution.get("station_title") and resolution.get("station_resolution_mode") not in {None, "", "exact"}:
         notes.append(
-            f"Local AgriMet data does not include {fixed['display_location']}; supported local locations: {', '.join(supported_agrimet_locations())}."
+            f"Resolved {fixed['display_location']} to {resolution['station_title']} ({resolution.get('station_id', '')}) via {resolution['station_resolution_mode']}."
         )
+    elif not resolution.get("supported_local", True):
+        notes.append(
+            f"Local AgriMet data does not include {fixed['display_location']}; SmartTap will use the AgriMet API. Local CSV locations: {', '.join(supported_agrimet_locations())}."
+        )
+    if notes:
         fixed["notes"] = notes
     return fixed
 

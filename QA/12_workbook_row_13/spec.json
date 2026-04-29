@@ -1,0 +1,58 @@
+{
+  "prompt": "How did irrigation demand change for blueberry farms in Sherman County between 2015 and 2023?",
+  "spec": {
+    "partner_query_id": "workbook_row_13",
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Sherman County",
+    "display_location": "Sherman County",
+    "location_type": "county",
+    "variables": [
+      "NIWR"
+    ],
+    "crop_filter": "Blueberry",
+    "start_date": "2015-01-01",
+    "end_date": "2023-12-31",
+    "interval": "monthly",
+    "evidence_pattern": "trend_single",
+    "source_datasets": [
+      "openet"
+    ],
+    "confirmation_status": "confirmed",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "chart_type": "line",
+    "openet_geo": "location",
+    "secondary_variables": [
+      "NIWR"
+    ],
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Sherman County",
+    "resolved_location": "Sherman County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "NIWR",
+    "variables_list": [
+      "NIWR"
+    ],
+    "variable_labels": [
+      "Net Irrigation Water Requirement"
+    ],
+    "date_range": "2015-01-01 to 2023-12-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "status": "success",
+    "crop_filter": "Blueberry",
+    "row_count": 108,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

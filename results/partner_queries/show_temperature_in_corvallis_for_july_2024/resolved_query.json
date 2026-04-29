@@ -1,0 +1,56 @@
+{
+  "prompt": "Show temperature in Corvallis for July 2024",
+  "spec": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "corvallis",
+    "variables": [
+      "OBM"
+    ],
+    "start_date": "2023-07-01",
+    "end_date": "2024-07-31",
+    "interval": "daily",
+    "chart_type": "line",
+    "statistics": [],
+    "confirmed_fields": [
+      "time_range"
+    ],
+    "notes": [],
+    "location_type": "city",
+    "display_location": "Corvallis",
+    "station_id": "crvo",
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend",
+    "clarification_needed": [],
+    "secondary_variables": [
+      "OBM"
+    ]
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "Corvallis",
+    "resolved_location": "corvallis",
+    "location_type": "city",
+    "station_id": "crvo",
+    "station_title": null,
+    "variables": "OBM",
+    "variables_list": [
+      "OBM"
+    ],
+    "variable_labels": [
+      "Average Temperature (deg F)"
+    ],
+    "date_range": "2023-07-01 to 2024-07-31",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "row_count": 397,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

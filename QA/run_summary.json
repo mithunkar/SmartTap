@@ -1,0 +1,235 @@
+{
+  "total_cases": 19,
+  "successful_cases": 19,
+  "failed_cases": 0,
+  "cases": [
+    {
+      "case_id": "workbook_row_02",
+      "prompt": "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+      "folder": "01_workbook_row_02",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/01_workbook_row_02/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/01_workbook_row_02/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/01_workbook_row_02/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_03",
+      "prompt": "What crops were most commonly grown in Yamhill County between 2016 and 2023, especially corn?",
+      "folder": "02_workbook_row_03",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/02_workbook_row_03/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/02_workbook_row_03/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/02_workbook_row_03/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_04",
+      "prompt": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+      "folder": "03_workbook_row_04",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/03_workbook_row_04/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/03_workbook_row_04/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/03_workbook_row_04/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_05",
+      "prompt": "What irrigation systems were most often used for wheat fields in Jefferson County between 2015 and 2021?",
+      "folder": "04_workbook_row_05",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/04_workbook_row_05/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/04_workbook_row_05/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/04_workbook_row_05/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_06",
+      "prompt": "Has irrigation efficiency improved for onion farms in Gilliam County from 2017 to 2023?",
+      "folder": "05_workbook_row_06",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/05_workbook_row_06/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/05_workbook_row_06/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/05_workbook_row_06/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_07",
+      "prompt": "How many irrigated barley fields were recorded in Baker County from 2016 to 2020?",
+      "folder": "06_workbook_row_07",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/06_workbook_row_07/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/06_workbook_row_07/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/06_workbook_row_07/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_08",
+      "prompt": "How has crop water use changed for mint fields in Klamath County between 2019 and 2024?",
+      "folder": "07_workbook_row_08",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/07_workbook_row_08/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/07_workbook_row_08/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/07_workbook_row_08/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_09",
+      "prompt": "How did potential water needs for sunflower crops evolve in Union County from 2013 to 2020?",
+      "folder": "08_workbook_row_09",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/08_workbook_row_09/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/08_workbook_row_09/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/08_workbook_row_09/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_10",
+      "prompt": "How much usable rainfall supported soybean fields in Wasco County between 2015 and 2021?",
+      "folder": "09_workbook_row_10",
+      "status": "no_data",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/09_workbook_row_10/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/09_workbook_row_10/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/09_workbook_row_10/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_11",
+      "prompt": "What rainfall patterns affected apple orchards in Hood River County from 2014 to 2022?",
+      "folder": "10_workbook_row_11",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/10_workbook_row_11/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/10_workbook_row_11/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/10_workbook_row_11/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_12",
+      "prompt": "How much irrigation water was consumed by rice farms in Lake County between 2018 and 2024?",
+      "folder": "11_workbook_row_12",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/11_workbook_row_12/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/11_workbook_row_12/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/11_workbook_row_12/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_13",
+      "prompt": "How did irrigation demand change for blueberry farms in Sherman County between 2015 and 2023?",
+      "folder": "12_workbook_row_13",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/12_workbook_row_13/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/12_workbook_row_13/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/12_workbook_row_13/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_14",
+      "prompt": "How much irrigation water was applied to lettuce farms in Harney County from 2017 to 2024?",
+      "folder": "13_workbook_row_14",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/13_workbook_row_14/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/13_workbook_row_14/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/13_workbook_row_14/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_15",
+      "prompt": "How did water demand change near Pendleton for grape vineyards between 2016 and 2023?",
+      "folder": "14_workbook_row_15",
+      "status": "no_data",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/14_workbook_row_15/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/14_workbook_row_15/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/14_workbook_row_15/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_16",
+      "prompt": "How did rainfall accumulate around Ontario affecting tomato farms between 2018 and 2024?",
+      "folder": "15_workbook_row_16",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/15_workbook_row_16/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/15_workbook_row_16/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/15_workbook_row_16/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_17",
+      "prompt": "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?",
+      "folder": "16_workbook_row_17",
+      "status": "success",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/16_workbook_row_17/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/16_workbook_row_17/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/16_workbook_row_17/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_18",
+      "prompt": "How did humidity levels change around La Grande impacting oat crops from 2016 to 2022?",
+      "folder": "17_workbook_row_18",
+      "status": "no_data",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/17_workbook_row_18/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/17_workbook_row_18/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/17_workbook_row_18/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_19",
+      "prompt": "How did wind patterns change near Madras affecting carrot farms between 2014 and 2021?",
+      "folder": "18_workbook_row_19",
+      "status": "no_data",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/18_workbook_row_19/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/18_workbook_row_19/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/18_workbook_row_19/spec.json"
+      }
+    },
+    {
+      "case_id": "workbook_row_20",
+      "prompt": "How did crop growth characteristics change for grass seed near Salem between 2019 and 2023?",
+      "folder": "19_workbook_row_20",
+      "status": "no_data",
+      "error": null,
+      "artifacts": {
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/19_workbook_row_20/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/19_workbook_row_20/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/19_workbook_row_20/spec.json"
+      }
+    }
+  ]
+}

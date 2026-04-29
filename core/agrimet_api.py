@@ -49,9 +49,9 @@ LOCATION_ALIASES = {
     "pendleton": "ptro",
     "hermiston": "hero",
     "boise": "boii",
-    "salem": "slmo",
     "medford": "mdfo",
     "bend": "beno",
+    "madras": "mrso",
 }
 
 

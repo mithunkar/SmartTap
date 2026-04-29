@@ -10,7 +10,7 @@ from .contracts import DatasetAdapter, DatasetContract, QuerySpec
 from .agrimet_api import fetch_agrimet_api_data
 from .location_crop_query import LocationCropQuery
 from .location_resolver import normalize_location_text, resolve_agrimet_location, supported_agrimet_locations
-from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable
+from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable, variable_label
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -61,6 +61,25 @@ DATASET_ADAPTERS: Dict[str, DatasetAdapter] = {
 }
 
 SUPPORTED_OPENET_GROUP_FIELDS = {"IRR_STATUS", "ITYPE", "CROP"}
+LOCAL_AGRIMET_VARIABLES = frozenset({"AVG_TMP", "OBM", "MX", "MN", "PC", "24_HR_PCP", "SR", "WS", "AV_WSPD"})
+API_ONLY_AGRIMET_VARIABLES = frozenset({"AVG_HUM", "TU", "ET", "PEN_ET", "Kc"})
+
+
+def _agrimet_fetch_mode(spec: Dict[str, Any]) -> str:
+    if os.getenv("AGRIMET_USE_API") == "1":
+        return "api_fallback"
+
+    variables = {str(value) for value in spec.get("variables") or []}
+    if any(variable in API_ONLY_AGRIMET_VARIABLES for variable in variables):
+        return "api_fallback"
+
+    if any(variable not in LOCAL_AGRIMET_VARIABLES for variable in variables):
+        return "api_fallback"
+
+    if not spec.get("supported_local", True):
+        return "api_fallback"
+
+    return "local"
 
 
 def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -69,8 +88,7 @@ def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
     if not location:
         return resolved
 
-    use_api = os.getenv("AGRIMET_USE_API") == "1"
-    match = resolve_agrimet_location(location, local_only=not use_api)
+    match = resolve_agrimet_location(location, local_only=False)
     if not match:
         return resolved
 
@@ -80,10 +98,16 @@ def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
         resolved["station_id"] = match["station_id"]
     if match.get("station_title") and not resolved.get("station_title"):
         resolved["station_title"] = match["station_title"]
+    if match.get("county_name") and not resolved.get("county_name"):
+        resolved["county_name"] = match["county_name"]
+    if match.get("station_resolution_mode"):
+        resolved["station_resolution_mode"] = match["station_resolution_mode"]
+    resolved["supported_local"] = bool(match.get("supported_local", True))
 
     canonical_location = match.get("canonical_location")
-    if canonical_location and (match.get("supported_local", True) or use_api):
+    if canonical_location:
         resolved["location"] = canonical_location
+    resolved["fetch_mode"] = _agrimet_fetch_mode(resolved)
     return resolved
 
 
@@ -201,6 +225,12 @@ def _load_local_agrimet_frame(spec: Dict[str, Any]) -> pd.DataFrame:
     return df.sort_values("datetime").reset_index(drop=True)
 
 
+def _sensor_series(df: pd.DataFrame, column: str) -> pd.Series:
+    if column not in df.columns:
+        return pd.Series([float("nan")] * len(df), index=df.index, dtype="float64")
+    return pd.to_numeric(df[column], errors="coerce")
+
+
 def _build_agrimet_result_frame(df: pd.DataFrame, variables: List[str]) -> pd.DataFrame:
     result = pd.DataFrame({"datetime": df["datetime"]})
     for variable in variables:
@@ -216,11 +246,47 @@ def _build_agrimet_result_frame(df: pd.DataFrame, variables: List[str]) -> pd.Da
             result[variable] = df["solar_langley"].round(2)
         elif variable in {"WS", "AV_WSPD"}:
             result[variable] = df["wind_speed_mph"].round(2)
-        elif variable in {"TU", "AVG_HUM", "ET", "PEN_ET", "Kc"}:
-            result[variable] = pd.NA
+        elif variable in {"TU", "AVG_HUM"}:
+            result[variable] = _sensor_series(df, "rh").round(2)
+        elif variable in {"ET", "PEN_ET"}:
+            result[variable] = _sensor_series(df, "et").round(2)
+        elif variable == "Kc":
+            result[variable] = _sensor_series(df, "kc").round(3)
         else:
             raise ValueError(f"Unsupported AgriMet variable: {variable}")
     return result
+
+
+def _finalize_agrimet_payload(spec: Dict[str, Any], result: pd.DataFrame) -> Dict[str, Any]:
+    requested_variables = [str(value) for value in spec.get("variables", []) or []]
+    nonnull_counts = {
+        variable: int(result[variable].notna().sum())
+        for variable in requested_variables
+        if variable in result.columns
+    }
+
+    if requested_variables and all(nonnull_counts.get(variable, 0) == 0 for variable in requested_variables):
+        labels = ", ".join(variable_label(variable) for variable in requested_variables)
+        station_bits = " ".join(
+            value
+            for value in [
+                spec.get("station_title"),
+                f"({spec.get('station_id')})" if spec.get("station_id") else "",
+            ]
+            if value
+        )
+        date_range = f"{spec.get('start_date')} to {spec.get('end_date')}" if spec.get("start_date") and spec.get("end_date") else ""
+        message = f"No usable AgriMet values were available for {labels}"
+        if station_bits:
+            message += f" at {station_bits}"
+        elif spec.get("display_location") or spec.get("location"):
+            message += f" near {spec.get('display_location') or spec.get('location')}"
+        if date_range:
+            message += f" for {date_range}"
+        message += "."
+        spec["no_data_reason"] = message
+
+    return {"spec": spec, "data": {"records": result.to_dict(orient="records")}}
 
 
 def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -233,22 +299,24 @@ def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
     )
     if df.empty:
         raise ValueError(f"No AgriMet data returned from API for {spec.get('location')}")
-    df = df.rename(columns={"date": "datetime"})
+    if "datetime" not in df.columns and "date" in df.columns:
+        df = df.rename(columns={"date": "datetime"})
+    elif "datetime" in df.columns and "date" in df.columns:
+        df = df.drop(columns=["date"])
     result = _build_agrimet_result_frame(df, spec.get("variables", []) or [])
     result = _apply_interval(result, spec.get("interval", "daily"))
-    return {"spec": spec, "data": {"records": result.to_dict(orient="records")}}
+    return _finalize_agrimet_payload(spec, result)
 
 
 def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     spec = _normalize_agrimet_spec(spec)
-    use_api = os.getenv("AGRIMET_USE_API") == "1"
-    if use_api:
+    if spec.get("fetch_mode") == "api_fallback":
         return _fetch_agrimet_from_api(spec)
 
     df = _load_local_agrimet_frame(spec)
     result = _build_agrimet_result_frame(df, spec.get("variables", []) or [])
     result = _apply_interval(result, spec.get("interval", "daily"))
-    return {"spec": spec, "data": {"records": result.to_dict(orient="records")}}
+    return _finalize_agrimet_payload(spec, result)
 
 
 def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -297,16 +365,16 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
                 no_data_reasons.append(str(metadata.get("no_data_reason") or ""))
 
         if not results:
-            raise ValueError(
-                _openet_no_data_message(
-                    location=str(location),
-                    location_type=location_type,
-                    crop_filter=str(crop_filter) if crop_filter else None,
-                    start_date=str(start_date) if start_date else None,
-                    end_date=str(end_date) if end_date else None,
-                    reason=next((value for value in no_data_reasons if value), None),
-                )
+            spec = dict(spec)
+            spec["no_data_reason"] = _openet_no_data_message(
+                location=str(location),
+                location_type=location_type,
+                crop_filter=str(crop_filter) if crop_filter else None,
+                start_date=str(start_date) if start_date else None,
+                end_date=str(end_date) if end_date else None,
+                reason=next((value for value in no_data_reasons if value), None),
             )
+            return {"spec": spec, "data": {"records": []}}
 
         names = list(results)
         wide = results[names[0]]

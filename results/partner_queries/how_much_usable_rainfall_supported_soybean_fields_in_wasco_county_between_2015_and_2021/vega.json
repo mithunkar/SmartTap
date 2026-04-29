@@ -1,0 +1,31 @@
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": "Usable Rainfall (in) near Wasco County",
+  "data": {
+    "values": [
+      {
+        "message": "No OpenET fields matched crop 'Soybean' in Wasco County for 2015-01-01 to 2021-12-31."
+      }
+    ]
+  },
+  "mark": {
+    "type": "text",
+    "align": "center",
+    "baseline": "middle",
+    "fontSize": 18,
+    "fontWeight": "bold"
+  },
+  "encoding": {
+    "x": {
+      "value": 320
+    },
+    "y": {
+      "value": 140
+    },
+    "text": {
+      "field": "message"
+    }
+  },
+  "width": 640,
+  "height": 280
+}

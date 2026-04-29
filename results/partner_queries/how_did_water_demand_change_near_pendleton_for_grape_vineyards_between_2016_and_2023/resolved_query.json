@@ -1,0 +1,57 @@
+{
+  "prompt": "How did water demand change near Pendleton for grape vineyards between 2016 and 2023?",
+  "spec": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "openet_geo": "location",
+    "location": "Pendleton",
+    "location_type": "city",
+    "variables": [
+      "ETa"
+    ],
+    "start_date": "2016-01-01",
+    "end_date": "2023-12-31",
+    "interval": "monthly",
+    "chart_type": "line",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "display_location": "Pendleton",
+    "crop_filter": "Grape",
+    "secondary_variables": [
+      "ETa"
+    ],
+    "confirmation_status": "confirmed",
+    "source_datasets": [
+      "openet"
+    ],
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Pendleton",
+    "resolved_location": "Pendleton",
+    "location_type": "city",
+    "station_id": null,
+    "station_title": null,
+    "variables": "ETa",
+    "variables_list": [
+      "ETa"
+    ],
+    "variable_labels": [
+      "Crop Water Use (in)"
+    ],
+    "date_range": "2016-01-01 to 2023-12-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "status": "success",
+    "crop_filter": "Grape",
+    "row_count": 96,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

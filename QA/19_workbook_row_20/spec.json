@@ -1,0 +1,70 @@
+{
+  "prompt": "How did crop growth characteristics change for grass seed near Salem between 2019 and 2023?",
+  "spec": {
+    "partner_query_id": "workbook_row_20",
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "salem",
+    "display_location": "Salem",
+    "location_type": "city",
+    "variables": [
+      "Kc"
+    ],
+    "crop_filter": "Grass Seed",
+    "start_date": "2019-01-01",
+    "end_date": "2023-12-31",
+    "interval": "daily",
+    "evidence_pattern": "trend_single",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "station_id": "subo",
+    "confirmation_status": "confirmed",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [
+      "Resolved Salem to Sublimity, Oregon Weather Station (subo) via centroid_nearest_station."
+    ],
+    "station_title": "Sublimity, Oregon Weather Station",
+    "station_resolution_mode": "centroid_nearest_station",
+    "supported_local": false,
+    "chart_type": "line",
+    "secondary_variables": [
+      "Kc"
+    ],
+    "chart_package": "single_trend",
+    "county_name": "Marion",
+    "fetch_mode": "api_fallback",
+    "no_data_reason": "No usable AgriMet values were available for Crop Coefficient at Sublimity, Oregon Weather Station (subo) for 2019-01-01 to 2023-12-31."
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "agrimet",
+    "location": "Salem",
+    "resolved_location": "salem",
+    "location_type": "city",
+    "station_id": "subo",
+    "station_title": "Sublimity, Oregon Weather Station",
+    "variables": "Kc",
+    "variables_list": [
+      "Kc"
+    ],
+    "variable_labels": [
+      "Crop Coefficient"
+    ],
+    "date_range": "2019-01-01 to 2023-12-31",
+    "source_datasets": [
+      "agrimet"
+    ],
+    "status": "no_data",
+    "crop_filter": "Grass Seed",
+    "fetch_mode": "api_fallback",
+    "station_resolution_mode": "centroid_nearest_station",
+    "no_data_reason": "No usable AgriMet values were available for Crop Coefficient at Sublimity, Oregon Weather Station (subo) for 2019-01-01 to 2023-12-31.",
+    "row_count": 0,
+    "usable_row_count": 0,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

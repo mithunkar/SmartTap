@@ -1,0 +1,58 @@
+{
+  "prompt": "Has irrigation efficiency improved for onion farms in Gilliam County from 2017 to 2023?",
+  "spec": {
+    "partner_query_id": "workbook_row_06",
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Gilliam County",
+    "display_location": "Gilliam County",
+    "location_type": "county",
+    "variables": [
+      "IRR_EFF"
+    ],
+    "crop_filter": "Onion",
+    "start_date": "2017-01-01",
+    "end_date": "2023-12-31",
+    "interval": "yearly",
+    "evidence_pattern": "trend_single",
+    "source_datasets": [
+      "openet"
+    ],
+    "confirmation_status": "confirmed",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "chart_type": "line",
+    "openet_geo": "location",
+    "secondary_variables": [
+      "IRR_EFF"
+    ],
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Gilliam County",
+    "resolved_location": "Gilliam County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "IRR_EFF",
+    "variables_list": [
+      "IRR_EFF"
+    ],
+    "variable_labels": [
+      "Irrigation Efficiency"
+    ],
+    "date_range": "2017-01-01 to 2023-01-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "status": "success",
+    "crop_filter": "Onion",
+    "row_count": 7,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  }
+}

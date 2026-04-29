@@ -85,8 +85,20 @@ def test_acceptance_cases_resolve_initial_state():
 
 def test_acceptance_confirmation_cases_generate_partner_artifacts(monkeypatch):
     cases = _load_cases()
+    no_data_cases = {
+        "workbook_row_10": "No OpenET fields matched crop 'Soybean' in Wasco County for 2015-01-01 to 2021-12-31.",
+        "workbook_row_18": "No usable AgriMet values were available for Average Humidity (percent) at Imbler, Oregon AgriMet Weather Station (imbo) for 2016-01-01 to 2022-12-31.",
+        "workbook_row_19": "No usable AgriMet values were available for Average Wind Speed (mph) at Madras, Oregon AgriMet Weather Station (mrso) for 2014-01-01 to 2021-12-31.",
+        "workbook_row_20": "No usable AgriMet values were available for Crop Coefficient at Sublimity, Oregon Weather Station (subo) for 2019-01-01 to 2023-12-31.",
+    }
 
     def fake_fetch_data(spec):
+        partner_query_id = str(spec.get("partner_query_id") or "")
+        if partner_query_id in no_data_cases:
+            return {
+                "spec": {**spec, "no_data_reason": no_data_cases[partner_query_id]},
+                "data": {"records": []},
+            }
         return {"spec": spec, "data": {"records": _mock_time_series_records(spec)}}
 
     class FakeLocationQuery:
@@ -158,6 +170,7 @@ def test_acceptance_confirmation_cases_generate_partner_artifacts(monkeypatch):
         assert final["success"] is True, case["id"]
         assert final["summary"]["dataset"] == case["expected_final"]["dataset"], case["id"]
         assert final["spec"]["evidence_pattern"] == case["expected_final"]["evidence_pattern"], case["id"]
+        assert final["summary"]["status"] == case["expected_final"]["status"], case["id"]
         assert final["summary"]["source_datasets"] == case["expected_initial"]["source_datasets"], case["id"]
         assert final["summary"]["variable_labels"], case["id"]
 

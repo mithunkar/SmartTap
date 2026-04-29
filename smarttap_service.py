@@ -192,6 +192,41 @@ def _build_variable_mean_chart(df: pd.DataFrame, variables: list[str], title: st
     return buffer.getvalue(), vega
 
 
+def _build_no_data_chart(*, title: str, message: str) -> tuple[bytes, Dict[str, Any]]:
+    vega = {
+        "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+        "title": title,
+        "data": {"values": [{"message": message}]},
+        "mark": {
+            "type": "text",
+            "align": "center",
+            "baseline": "middle",
+            "fontSize": 18,
+            "fontWeight": "bold",
+        },
+        "encoding": {
+            "x": {"value": 320},
+            "y": {"value": 140},
+            "text": {"field": "message"},
+        },
+        "width": 640,
+        "height": 280,
+    }
+
+    fig, ax = plt.subplots(figsize=(8.5, 3.75))
+    ax.axis("off")
+    ax.text(0.5, 0.62, title, ha="center", va="center", fontsize=15, fontweight="bold", transform=ax.transAxes)
+    ax.text(0.5, 0.35, message, ha="center", va="center", fontsize=12, wrap=True, transform=ax.transAxes)
+    fig.tight_layout()
+
+    from io import BytesIO
+
+    buffer = BytesIO()
+    fig.savefig(buffer, format="png", dpi=160)
+    plt.close(fig)
+    return buffer.getvalue(), vega
+
+
 def _build_secondary_view(
     *,
     caption: str,
@@ -256,8 +291,11 @@ def _common_summary(spec: Dict[str, Any], variables: list[str], df: pd.DataFrame
         "variable_labels": [variable_label(value) for value in variables],
         "date_range": _exact_date_range(spec, df),
         "source_datasets": source_datasets,
+        "status": "success",
     }
     _set_optional(summary, "crop_filter", spec.get("crop_filter"))
+    _set_optional(summary, "fetch_mode", spec.get("fetch_mode"))
+    _set_optional(summary, "station_resolution_mode", spec.get("station_resolution_mode"))
     return summary
 
 
@@ -349,6 +387,89 @@ def _set_optional(summary: Dict[str, Any], key: str, value: Any) -> None:
         summary[key] = value
 
 
+def _requested_variable_list(spec: Dict[str, Any]) -> list[str]:
+    return [str(value) for value in spec.get("variables") or [] if str(value)]
+
+
+def _no_data_dataframe(spec: Dict[str, Any]) -> pd.DataFrame:
+    columns = ["datetime", *_requested_variable_list(spec)]
+    return pd.DataFrame(columns=columns)
+
+
+def _build_no_data_validation_report(
+    *,
+    spec: Dict[str, Any],
+    reason: str,
+    base_report: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    report = dict(base_report or {})
+    summary = dict(report.get("summary") or {})
+    summary["row_count"] = 0
+    summary["usable_row_count"] = 0
+    report.update(
+        {
+            "ok": True,
+            "errors": [],
+            "warnings": [*list(report.get("warnings") or []), reason],
+            "summary": summary,
+            "location": spec.get("display_location") or spec.get("location"),
+            "variables": _requested_variable_list(spec),
+            "start_date": spec.get("start_date"),
+            "end_date": spec.get("end_date"),
+            "status": "no_data",
+        }
+    )
+    report["nonnull_count"] = report.get("nonnull_count") or summary.get("nonnull_count") or {}
+    report["all_null_variables"] = report.get("all_null_variables") or summary.get("all_null_variables") or []
+    report["usable_row_count"] = 0
+    return report
+
+
+def _build_no_data_result(
+    *,
+    spec: Dict[str, Any],
+    paths: Dict[str, Path],
+    reason: str,
+    validation_report: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    empty_df = _no_data_dataframe(spec)
+    variables = _requested_variable_list(spec)
+    title_variables = ", ".join(variable_label(value) for value in variables) if variables else "Requested data"
+    title = f"{title_variables} near {_resolved_display_location(spec)}"
+    png, vega = _build_no_data_chart(title=title, message=reason)
+    _save_bytes(paths["png"], png)
+    _save_json(paths["vega"], vega)
+
+    report = _build_no_data_validation_report(spec=spec, reason=reason, base_report=validation_report)
+    _save_json(paths["validation"], report)
+
+    summary = _common_summary(spec, variables, empty_df)
+    summary.update(
+        {
+            "status": "no_data",
+            "no_data_reason": reason,
+            "row_count": 0,
+            "usable_row_count": 0,
+            "evidence_pattern": spec.get("evidence_pattern"),
+            "chart_package": spec.get("chart_package"),
+        }
+    )
+    explanation = f"SmartTap resolved the request but could not produce usable data. {reason}"
+
+    return build_success_result(
+        spec=spec,
+        summary=summary,
+        explanation=explanation,
+        data_preview=empty_df,
+        data=empty_df,
+        chart_bytes=png,
+        vega_spec=vega,
+        files=_files_as_strings(paths),
+        secondary_views=[],
+        validation_report=report,
+    )
+
+
 def _resolved_request_text(spec: Dict[str, Any]) -> str:
     parts = []
     variables = spec.get("variables") or []
@@ -385,7 +506,7 @@ def _build_clarification_prompt(spec: Dict[str, Any], fields: list[str]) -> str:
     if "station" in fields:
         supported = ", ".join(supported_agrimet_locations())
         field_messages.append(
-            f"a supported AgriMet location or station choice; the local AgriMet dataset only supports: {supported}"
+            f"an AgriMet location or station choice SmartTap can resolve; locally supported city names include: {supported}"
         )
 
     if field_messages:
@@ -633,6 +754,12 @@ def _run_visualization_task(query: str, spec: Dict[str, Any], paths: Dict[str, P
     del query
     payload = fetch_data(spec)
     report = validate_payload(payload)
+    final_spec = payload.get("spec") or spec
+    no_data_reason = str(final_spec.get("no_data_reason") or "").strip()
+    if no_data_reason or "No usable values were returned for the requested variables." in (report.get("errors") or []):
+        reason = no_data_reason or "; ".join(report.get("errors") or []) or "No usable data was returned."
+        return _build_no_data_result(spec=final_spec, paths=paths, reason=reason, validation_report=report)
+
     _save_json(paths["validation"], report)
     if not report["ok"]:
         raise SmartTapError("; ".join(report["errors"]))
@@ -902,6 +1029,12 @@ def _run_statistical_summary(query: str, spec: Dict[str, Any], paths: Dict[str, 
 
     payload = fetch_data(stat_spec)
     report = validate_payload(payload)
+    final_spec = payload.get("spec") or stat_spec
+    no_data_reason = str(final_spec.get("no_data_reason") or "").strip()
+    if no_data_reason or "No usable values were returned for the requested variables." in (report.get("errors") or []):
+        reason = no_data_reason or "; ".join(report.get("errors") or []) or "No usable data was returned."
+        return _build_no_data_result(spec=final_spec, paths=paths, reason=reason, validation_report=report)
+
     _save_json(paths["validation"], report)
     if not report["ok"]:
         raise SmartTapError("; ".join(report["errors"]))

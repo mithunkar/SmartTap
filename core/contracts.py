@@ -50,6 +50,10 @@ class QuerySpec(TypedDict, total=False):
     secondary_variables: List[str]
     source_datasets: List[str]
     chart_package: str | List[str]
+    fetch_mode: str
+    station_resolution_mode: str
+    supported_local: bool
+    no_data_reason: str
     openet_geo: str
     openet_id: str
     huc8_code: str

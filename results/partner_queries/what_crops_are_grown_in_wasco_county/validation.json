@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "errors": [],
+  "warnings": [],
+  "summary": {
+    "row_count": 29,
+    "field_count": 3879
+  },
+  "location": "Wasco County",
+  "variables": [
+    "CROP"
+  ],
+  "year": 2024
+}

@@ -115,6 +115,21 @@ def test_resolve_agrimet_location_handles_supported_and_unsupported_places():
     assert medford is not None
     assert medford["supported_local"] is False
     assert medford["station_title"].startswith("Medford")
+    assert medford["station_resolution_mode"] == "nearest_city"
+
+
+def test_resolve_agrimet_location_uses_city_centroid_for_la_grande():
+    lagrande = resolve_agrimet_location("La Grande", local_only=False)
+    assert lagrande is not None
+    assert lagrande["station_id"] == "imbo"
+    assert lagrande["station_resolution_mode"] == "centroid_nearest_station"
+
+
+def test_resolve_agrimet_location_uses_city_centroid_for_salem():
+    salem = resolve_agrimet_location("Salem", local_only=False)
+    assert salem is not None
+    assert salem["station_id"] == "subo"
+    assert salem["station_resolution_mode"] == "centroid_nearest_station"
 
 
 def test_validate_and_fix_spec_normalizes_queryspec_shape():
@@ -194,12 +209,14 @@ def test_validate_and_fix_spec_accepts_supported_agrimet_county():
     assert "station" not in result["clarification_needed"]
 
 
-def test_validate_and_fix_spec_flags_unsupported_local_agrimet_city():
+def test_validate_and_fix_spec_auto_resolves_nonlocal_agrimet_city():
     result = validate_and_fix_spec({}, "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?")
     assert result["display_location"] == "Medford"
+    assert result["location"] == "medford"
     assert result["variables"] == ["AVG_TMP"]
     assert result["crop_filter"] == "Peach"
-    assert result["clarification_needed"] == ["station"]
+    assert result["station_id"] == "mdfo"
+    assert result["clarification_needed"] == []
 
 
 def test_validate_and_fix_spec_infers_partner_query_fields():
