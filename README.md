@@ -1,41 +1,40 @@
 # SmartTap
 
-SmartTap is a small Python app for turning plain-English requests about Oregon agricultural and weather data into charts, summaries, and inspectable evidence.
+SmartTap turns plain-English questions about Oregon agricultural and weather data into charts, summaries, and inspectable evidence.
 
-It keeps one primary product surface, the Streamlit UI, backed by one shared pipeline:
+The retained product surface is one shared pipeline used by the Streamlit UI and CLI:
 
-`parse -> validate -> fetch -> summarize -> visualize`
+`parse -> validate -> fetch -> visualize -> explain`
 
-Its main job is to help a user investigate a question by returning useful visuals plus the underlying rows and metadata. For complex agronomic prompts, the Spring MVP is not trying to produce an authoritative final answer on its own. It is trying to give the user enough evidence to answer the question themselves.
+SmartTap is an evidence system, not a final-answer engine. Its job is to return the right data, chart, and metadata package so the next reviewer can verify what the query actually shows.
 
-## What It Supports
+## Supported Surface
 
-- Single-variable trend views
-- Statistical snapshots
-- Crop ranking and crop-distribution views by city or county
-- Multi-variable comparison views
-- Coordinated cross-dataset evidence packages when OpenET and AgriMet variables are mixed
-- Inspectable plotted rows and figure metadata
-- Two data sources:
-  - OpenET field and crop data from local GeoPackages
-  - AgriMet weather data from local CSVs
+- Time-series evidence views
+- Statistical summaries
+- Crop ranking and crop-distribution summaries
+- Coordinated OpenET + AgriMet evidence packages
+- Deterministic confirmation, clarification, validation, and explanation flows
 
-SmartTap also now carries a canonical evidence-pattern taxonomy so routing, explanation text, tests, and docs use one shared vocabulary:
+Data sources:
 
-- Core supported patterns:
-  - `trend_single`
-  - `stat_snapshot`
-  - `ranking_categories`
-  - `distribution_categories`
-  - `comparison_multivariate`
-  - `cross_dataset_comparison`
-- Next-step canonical patterns:
-  - `comparison_grouped`
-  - `change_over_period`
-  - `ranking_metric`
-  - `seasonality_pattern`
+- OpenET field and crop data from local GeoPackages
+- AgriMet weather data from local CSVs, with optional API fallback for unsupported local variables
 
-SmartTap no longer includes AI follow-up generation, conversational spec patching, or comparison workflows.
+## Repo Layout
+
+- `core/`, `llm/`, `smarttap_service.py`, `smarttap_ui.py`, `smarttap.py`: runtime code
+- `reference/`: tracked small reference assets used by code and handoff docs
+- `data/`: local-only heavy datasets and acquisition notes
+- `artifacts/qa/`: tracked workbook QA bundle
+- `artifacts/examples/partner_queries/`: tracked sample evidence runs
+- `docs/`: current docs for onboarding, architecture, and handoff
+- `docs/archive/`: historical planning and legacy reference docs
+- `scripts/`: active utilities
+- `scripts/archive/`: legacy utilities kept for reference only
+- `tests/`: retained automated test suite
+
+More detail is in [docs/REPO_HANDOFF.md](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/docs/REPO_HANDOFF.md).
 
 ## Quick Start
 
@@ -54,7 +53,11 @@ ollama pull gemma3:latest
 ollama serve
 ```
 
-3. Run the app.
+3. Download the required local data into `data/`.
+
+See [data/README.md](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/data/README.md).
+
+4. Run the UI.
 
 ```bash
 ./run_ui.sh
@@ -64,57 +67,54 @@ The UI starts at [http://localhost:8501](http://localhost:8501).
 
 ## CLI
 
-The CLI is a thin wrapper around the same shared service used by the UI.
-
 ```bash
 python smarttap.py "Show temperature in Corvallis for July 2024"
 ```
 
-## Example Queries
-
-```bash
-Show temperature in Corvallis for July 2024
-What is the average ETa in Hood River in 2024?
-What crops are grown in Benton County?
-Show precipitation in Pendleton in 2023
-```
-
-These examples should be read as requests for analytical views. The narrative text is supportive context, but the primary deliverable is the chart, plotted data, and figure metadata that help the user interpret the result.
-
-The UI presents one deterministic explanation card alongside the primary chart plus a separate details section for metadata and the resolved request. When a prompt needs more than one view, SmartTap can now return companion charts as part of the same evidence package. Explanation text is generated from task-aware and evidence-pattern-aware rules, not as a free-form LLM sidecar.
-
 ## Data Requirements
 
-SmartTap expects these local files:
+Tracked reference assets now live in `reference/`:
 
-- `data/agrimet/*.csv` for AgriMet weather
+- `reference/agrimet_stations_full_metadata.csv`
+- `reference/CDL_Crop_Codes_Oregon.csv`
+- `reference/openet_variable_keywords.json`
+- `reference/crop_name_keywords.json`
+
+Required local data lives in `data/`:
+
+- `data/agrimet/*.csv`
 - `data/field_points.gpkg`
 - `data/preliminary_or_field_geopackage.gpkg`
-- `data/CDL_Crop_Codes_Oregon.csv`
 
 Optional:
 
-- `AGRIMET_USE_API=1` to use the AgriMet API instead of local CSVs
+- `AGRIMET_USE_API=1` to prefer the AgriMet API when local CSV coverage is insufficient
+- `data/openet/field_combined_long.csv` and `data/openet/huc_combined_long.csv` only for legacy explicit non-location field/HUC fetch modes
 
-## Project Shape
+## OpenET Note
 
-```text
-smarttap_service.py        Shared application pipeline
-smarttap_ui.py             Streamlit UI
-smarttap.py                Thin CLI wrapper
-core/data_fetcher.py       Local/API data access
-core/location_crop_query.py OpenET crop and field queries
-core/validation.py         Query and payload validation
-core/evidence_router.py    Evidence-pattern routing and chart-package selection
-core/visualizer.py         Chart rendering and Vega-Lite specs
-llm/interpretation.py      Ollama-backed natural-language parsing
-tests/                     Deterministic tests for the retained product surface
-```
+The current statewide location-query path is GeoPackage-backed.
+
+- City/county OpenET queries route through `core/location_crop_query.py`
+- That path depends on `data/field_points.gpkg` and `data/preliminary_or_field_geopackage.gpkg`
+- Archived CSV conversion scripts are not part of the active runtime path for location-based chat queries
 
 ## Testing
 
-Run the retained tests with:
+Run the retained suite with:
 
 ```bash
-python -m pytest -q tests/test_imports.py tests/test_visualizer.py tests/test_data_fetcher.py tests/test_contracts.py tests/test_service.py
+python -m pytest -q
 ```
+
+The lightweight wrapper below runs the same suite:
+
+```bash
+python tests/run_tests.py
+```
+
+## Handoff Docs
+
+- [docs/REPO_HANDOFF.md](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/docs/REPO_HANDOFF.md)
+- [docs/ARCHITECTURE_CONTRACTS.md](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/docs/ARCHITECTURE_CONTRACTS.md)
+- [docs/QUERY_EVIDENCE_OUTPUT_SPEC.md](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/docs/QUERY_EVIDENCE_OUTPUT_SPEC.md)

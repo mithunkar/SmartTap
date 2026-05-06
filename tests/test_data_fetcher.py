@@ -259,6 +259,23 @@ class TestDataFetcher(unittest.TestCase):
         self.assertEqual(payload["spec"]["station_id"], "ptro")
         self.assertEqual(payload["data"]["records"][0]["PEN_ET"], 1.1)
 
+    def test_agrimet_api_failure_returns_no_data_payload(self):
+        spec = {
+            "dataset": "agrimet",
+            "location": "la grande",
+            "display_location": "La Grande",
+            "variables": ["AVG_HUM"],
+            "start_date": "2016-01-01",
+            "end_date": "2022-12-31",
+        }
+
+        with patch("core.data_fetcher.fetch_agrimet_api_data", side_effect=ValueError("Station not found for 'imbo'.")):
+            payload = fetch_agrimet_data(spec)
+
+        self.assertEqual(payload["data"]["records"], [])
+        self.assertIn("No AgriMet API data was available for Average Humidity (percent)", payload["spec"]["no_data_reason"])
+        self.assertIn("API detail: Station not found for 'imbo'.", payload["spec"]["no_data_reason"])
+
     def test_validate_payload_marks_all_null_requested_variables_unusable(self):
         payload = {
             "spec": {"variables": ["AVG_HUM"], "display_location": "La Grande"},

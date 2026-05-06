@@ -1,20 +1,22 @@
-# Data files (too large for git)
-data/
-!data/*.csv
-!data/*.json
-!data/agrimet/
+# Local datasets and archives
+data/*
+!data/README.md
+!data/archive/
+data/archive/*
+!data/archive/README.md
 
-# Generated outputs
+# Runtime outputs and local evaluations
 outputs/
 evaluation_results/
+results/
+tests/evaluation_results/
 
 # Environment variables
 .env
 
-# Docs
-docs/
-
-# Python
+# Python and caches
+.cache/
+.pytest_cache/
 __pycache__/
 *.py[cod]
 *$py.class

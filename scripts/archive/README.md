@@ -40,6 +40,13 @@ These scripts either:
 3. Are for one-time data processing
 4. May cause issues if run incorrectly (memory errors, etc.)
 
+## OpenET CSV Status
+
+- SmartTap's current location-based OpenET chat flow does **not** read these CSV exports.
+- City/county and crop-filtered OpenET queries use `data/field_points.gpkg` plus `data/preliminary_or_field_geopackage.gpkg` through `core/location_crop_query.py`.
+- The combined CSV outputs `data/openet/field_combined_long.csv` and `data/openet/huc_combined_long.csv` were kept as legacy utilities for explicit non-location field/HUC fetch modes only.
+- Those CSVs are not generated as part of normal setup and are not tracked in git.
+
 ## When You Might Need These
 
 - **New data format**: If OpenET changes their format, conversion scripts may be useful

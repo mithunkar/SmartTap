@@ -1,0 +1,69 @@
+{
+  "prompt": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+  "spec": {
+    "partner_query_id": "workbook_row_04",
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Deschutes County",
+    "display_location": "Deschutes County",
+    "location_type": "county",
+    "variables": [
+      "per_IRRIGATED"
+    ],
+    "crop_filter": "Potato",
+    "start_date": "2018-01-01",
+    "end_date": "2024-12-31",
+    "interval": "yearly",
+    "evidence_pattern": "trend_single",
+    "source_datasets": [
+      "openet"
+    ],
+    "confirmation_status": "confirmed",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "chart_type": "line",
+    "openet_geo": "location",
+    "secondary_variables": [
+      "per_IRRIGATED"
+    ],
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Deschutes County",
+    "resolved_location": "Deschutes County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "per_IRRIGATED",
+    "variables_list": [
+      "per_IRRIGATED"
+    ],
+    "variable_labels": [
+      "Irrigated Share (percent)"
+    ],
+    "date_range": "2018-01-01 to 2024-01-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "status": "success",
+    "crop_filter": "Potato",
+    "row_count": 7,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "original_prompt": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+  "rewritten": false,
+  "qa_review": {
+    "case_id": "workbook_row_04",
+    "executed_prompt": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+    "original_prompt": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+    "rewritten": false,
+    "rewrite_reason": null,
+    "status": "success",
+    "no_data_reason": null
+  }
+}

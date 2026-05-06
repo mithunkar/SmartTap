@@ -1,0 +1,69 @@
+{
+  "prompt": "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+  "spec": {
+    "partner_query_id": "workbook_row_02",
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Morrow County",
+    "display_location": "Morrow County",
+    "location_type": "county",
+    "variables": [
+      "ACRES_FTR_GEOM"
+    ],
+    "crop_filter": "Alfalfa",
+    "start_date": "2014-01-01",
+    "end_date": "2022-12-31",
+    "interval": "yearly",
+    "evidence_pattern": "trend_single",
+    "source_datasets": [
+      "openet"
+    ],
+    "confirmation_status": "confirmed",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "chart_type": "line",
+    "openet_geo": "location",
+    "secondary_variables": [
+      "ACRES_FTR_GEOM"
+    ],
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Morrow County",
+    "resolved_location": "Morrow County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "ACRES_FTR_GEOM",
+    "variables_list": [
+      "ACRES_FTR_GEOM"
+    ],
+    "variable_labels": [
+      "Farmland Area (acres)"
+    ],
+    "date_range": "2014-01-01 to 2022-01-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "status": "success",
+    "crop_filter": "Alfalfa",
+    "row_count": 9,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "original_prompt": "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+  "rewritten": false,
+  "qa_review": {
+    "case_id": "workbook_row_02",
+    "executed_prompt": "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+    "original_prompt": "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+    "rewritten": false,
+    "rewrite_reason": null,
+    "status": "success",
+    "no_data_reason": null
+  }
+}

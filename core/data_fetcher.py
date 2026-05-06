@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -12,17 +11,17 @@ from .agrimet_station_loader import find_local_file_prefixes
 from .location_crop_query import LocationCropQuery
 from .location_resolver import normalize_location_text, resolve_agrimet_location
 from . import location_resolver as _location_resolver
+from .paths import (
+    AGRIMET_DIR,
+    BASE_DIR,
+    DATA_DIR,
+    FIELD_POINTS_GPKG,
+    FULL_OREGON_GPKG,
+    OPENET_DIR,
+    OPENET_FIELD_COMBINED,
+    OPENET_HUC_COMBINED,
+)
 from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable, variable_label
-
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-AGRIMET_DIR = DATA_DIR / "agrimet"
-FIELD_POINTS_GPKG = DATA_DIR / "field_points.gpkg"
-FULL_OREGON_GPKG = DATA_DIR / "preliminary_or_field_geopackage.gpkg"
-OPENET_DIR = DATA_DIR / "openet"
-OPENET_FIELD_COMBINED = OPENET_DIR / "field_combined_long.csv"
-OPENET_HUC_COMBINED = OPENET_DIR / "huc_combined_long.csv"
 
 
 class AgrimetAdapter:
@@ -44,7 +43,7 @@ class OpenETAdapter:
         location_kinds=("city", "county", "field"),
         default_interval="monthly",
         supported_variables=tuple(sorted(OPENET_VARIABLES)),
-        notes="OpenET supports location, field, and HUC-style queries depending on spec fields.",
+        notes="Location queries use the statewide GeoPackage; legacy combined CSVs are only used for explicit field/HUC modes.",
     )
 
     def fetch(self, spec: QuerySpec) -> Dict[str, Any]:
@@ -373,6 +372,33 @@ def _finalize_agrimet_payload(spec: Dict[str, Any], result: pd.DataFrame) -> Dic
     return {"spec": spec, "data": {"records": result.to_dict(orient="records")}}
 
 
+def _agrimet_api_no_data_message(spec: Dict[str, Any], detail: str | None = None) -> str:
+    requested_variables = [str(value) for value in spec.get("variables", []) or []]
+    labels = ", ".join(variable_label(variable) for variable in requested_variables) or "requested AgriMet variables"
+    station_bits = " ".join(
+        value
+        for value in [
+            spec.get("station_title"),
+            f"({spec.get('station_id')})" if spec.get("station_id") else "",
+        ]
+        if value
+    )
+    date_range = f"{spec.get('start_date')} to {spec.get('end_date')}" if spec.get("start_date") and spec.get("end_date") else ""
+
+    message = f"No AgriMet API data was available for {labels}"
+    if station_bits:
+        message += f" at {station_bits}"
+    elif spec.get("display_location") or spec.get("location"):
+        message += f" near {spec.get('display_location') or spec.get('location')}"
+    if date_range:
+        message += f" for {date_range}"
+    if detail:
+        message += f". API detail: {detail}"
+    else:
+        message += "."
+    return message
+
+
 def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
     spec = _normalize_agrimet_spec(spec)
     display = spec.get("display_location") or spec.get("location") or "this location"
@@ -384,10 +410,12 @@ def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
             end_date=spec.get("end_date") or "2024-12-31",
         )
     except ValueError as exc:
-        raise ValueError(f"Could not fetch AgriMet data for {display}: {exc}") from exc
+        spec["no_data_reason"] = _agrimet_api_no_data_message(spec, str(exc))
+        return {"spec": spec, "data": {"records": []}}
 
     if df.empty:
-        raise ValueError(f"No AgriMet data returned from API for {display}.")
+        spec["no_data_reason"] = _agrimet_api_no_data_message(spec, f"No AgriMet data returned from API for {display}.")
+        return {"spec": spec, "data": {"records": []}}
 
     if "datetime" not in df.columns and "date" in df.columns:
         df = df.rename(columns={"date": "datetime"})
@@ -477,7 +505,7 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     if geo == "field":
         _require_file(
             OPENET_FIELD_COMBINED,
-            "Create data/openet/field_combined_long.csv or use location-based OpenET queries.",
+            "Create data/openet/field_combined_long.csv for explicit non-location field queries, or use location-based OpenET queries backed by the statewide GeoPackage.",
         )
         df = pd.read_csv(OPENET_FIELD_COMBINED)
         df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
@@ -494,7 +522,7 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
 
     _require_file(
         OPENET_HUC_COMBINED,
-        "Create data/openet/huc_combined_long.csv or use location-based OpenET queries.",
+        "Create data/openet/huc_combined_long.csv for explicit non-location HUC queries, or use location-based OpenET queries backed by the statewide GeoPackage.",
     )
     df = pd.read_csv(OPENET_HUC_COMBINED)
     if "datetime" not in df.columns and {"year", "month"}.issubset(df.columns):

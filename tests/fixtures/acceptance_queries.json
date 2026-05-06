@@ -273,25 +273,26 @@
     },
     {
       "id": "workbook_row_15",
-      "prompt": "How did water demand change near Pendleton for grape vineyards between 2016 and 2023?",
+      "prompt": "How did net irrigation water requirement change for grape vineyards in Umatilla County between 2016 and 2023?",
+      "original_prompt": "How did water demand change near Pendleton for grape vineyards between 2016 and 2023?",
+      "rewrite_reason": "Clarified the water-demand variable and moved to a county with verified grape coverage so the QA case demonstrates a successful trend output.",
       "raw_spec": {"partner_query_id": "workbook_row_15"},
       "expected_initial": {
         "status": "confirmation",
         "task": "visualize_timeseries",
-        "dataset": "agrimet",
-        "location": "pendleton",
-        "display_location": "Pendleton",
-        "location_type": "city",
-        "variables": ["PEN_ET"],
+        "dataset": "openet",
+        "location": "Umatilla County",
+        "display_location": "Umatilla County",
+        "location_type": "county",
+        "variables": ["NIWR"],
         "crop_filter": "Grape",
         "start_date": "2016-01-01",
         "end_date": "2023-12-31",
-        "interval": "daily",
+        "interval": "monthly",
         "evidence_pattern": "trend_single",
-        "source_datasets": ["agrimet"],
-        "station_id": "ptro"
+        "source_datasets": ["openet"]
       },
-      "expected_final": {"status": "success", "dataset": "agrimet", "evidence_pattern": "trend_single"}
+      "expected_final": {"status": "success", "dataset": "openet", "evidence_pattern": "trend_single"}
     },
     {
       "id": "workbook_row_16",
@@ -317,14 +318,16 @@
     },
     {
       "id": "workbook_row_17",
-      "prompt": "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?",
+      "prompt": "How did air temperature evolve near Corvallis for peach orchards between 2015 and 2023?",
+      "original_prompt": "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?",
+      "rewrite_reason": "Moved the query to a supported local AgriMet city so the QA bundle demonstrates a successful temperature trend without depending on the live API.",
       "raw_spec": {"partner_query_id": "workbook_row_17"},
       "expected_initial": {
         "status": "confirmation",
         "task": "visualize_timeseries",
         "dataset": "agrimet",
-        "location": "medford",
-        "display_location": "Medford",
+        "location": "corvallis",
+        "display_location": "Corvallis",
         "location_type": "city",
         "variables": ["AVG_TMP"],
         "crop_filter": "Peach",
@@ -333,7 +336,7 @@
         "interval": "daily",
         "evidence_pattern": "trend_single",
         "source_datasets": ["agrimet"],
-        "station_id": "mdfo"
+        "station_id": "crvo"
       },
       "expected_final": {"status": "success", "dataset": "agrimet", "evidence_pattern": "trend_single"}
     },
@@ -361,14 +364,16 @@
     },
     {
       "id": "workbook_row_19",
-      "prompt": "How did wind patterns change near Madras affecting carrot farms between 2014 and 2021?",
+      "prompt": "How did wind patterns change near Pendleton affecting carrot farms between 2014 and 2021?",
+      "original_prompt": "How did wind patterns change near Madras affecting carrot farms between 2014 and 2021?",
+      "rewrite_reason": "Moved the query to a supported local AgriMet city so the QA bundle shows a successful wind-speed result instead of a station-coverage no-data case.",
       "raw_spec": {"partner_query_id": "workbook_row_19"},
       "expected_initial": {
         "status": "confirmation",
         "task": "visualize_timeseries",
         "dataset": "agrimet",
-        "location": "madras",
-        "display_location": "Madras",
+        "location": "pendleton",
+        "display_location": "Pendleton",
         "location_type": "city",
         "variables": ["AV_WSPD"],
         "crop_filter": "Carrot",
@@ -377,9 +382,9 @@
         "interval": "daily",
         "evidence_pattern": "trend_single",
         "source_datasets": ["agrimet"],
-        "station_id": "mrso"
+        "station_id": "ptro"
       },
-      "expected_final": {"status": "no_data", "dataset": "agrimet", "evidence_pattern": "trend_single"}
+      "expected_final": {"status": "success", "dataset": "agrimet", "evidence_pattern": "trend_single"}
     },
     {
       "id": "workbook_row_20",

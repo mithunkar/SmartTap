@@ -30,6 +30,8 @@ def _assert_partner_artifacts(result: dict) -> None:
     for key in ["results_dir", "prompt", "resolved_query", "data", "png", "vega", "validation", "verification"]:
         assert key in result["files"]
         assert Path(result["files"][key]).exists()
+    results_dir = Path(result["files"]["results_dir"])
+    assert results_dir.parts[:2] == ("outputs", "partner_queries")
 
 
 def test_visualize_timeseries_requires_confirmation_and_writes_partner_artifacts(monkeypatch):

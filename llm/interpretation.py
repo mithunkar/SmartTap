@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import date
 from pathlib import Path
 
 from .config import get_model_name
+from core.paths import CROP_NAME_KEYWORDS_JSON, OPENET_VARIABLE_KEYWORDS_JSON
 from core.variable_registry import variables_for_dataset
 
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def _ollama_client():
@@ -36,11 +35,11 @@ def load_keyword_mappings():
     variable_keywords = {}
     crop_keywords = {}
     try:
-        variable_keywords = json.loads((DATA_DIR / "openet_variable_keywords.json").read_text())
+        variable_keywords = json.loads(OPENET_VARIABLE_KEYWORDS_JSON.read_text())
     except FileNotFoundError:
         pass
     try:
-        crop_keywords = json.loads((DATA_DIR / "crop_name_keywords.json").read_text())
+        crop_keywords = json.loads(CROP_NAME_KEYWORDS_JSON.read_text())
     except FileNotFoundError:
         pass
     return variable_keywords, crop_keywords

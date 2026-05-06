@@ -4,33 +4,29 @@ Used as fallback when LLM parsing is uncertain or for validation
 """
 
 import json
-import os
 from typing import Dict, List, Tuple, Optional
+
+from core.paths import CROP_NAME_KEYWORDS_JSON, OPENET_VARIABLE_KEYWORDS_JSON
 
 class KeywordMatcher:
     """Matches user queries to OpenET variables and crop names using keyword mappings"""
     
     def __init__(self):
         """Load keyword mappings from JSON files"""
-        base_path = os.path.dirname(os.path.dirname(__file__))
-        
-        var_path = os.path.join(base_path, "data", "openet_variable_keywords.json")
-        crop_path = os.path.join(base_path, "data", "crop_name_keywords.json")
-        
         self.variable_keywords = {}
         self.crop_keywords = {}
         
         try:
-            with open(var_path, 'r') as f:
+            with OPENET_VARIABLE_KEYWORDS_JSON.open('r', encoding="utf-8") as f:
                 self.variable_keywords = json.load(f)
         except FileNotFoundError:
-            print(f"Warning: Variable keywords file not found at {var_path}")
+            print(f"Warning: Variable keywords file not found at {OPENET_VARIABLE_KEYWORDS_JSON}")
         
         try:
-            with open(crop_path, 'r') as f:
+            with CROP_NAME_KEYWORDS_JSON.open('r', encoding="utf-8") as f:
                 self.crop_keywords = json.load(f)
         except FileNotFoundError:
-            print(f"Warning: Crop keywords file not found at {crop_path}")
+            print(f"Warning: Crop keywords file not found at {CROP_NAME_KEYWORDS_JSON}")
     
     def normalize_query(self, query: str) -> List[str]:
         """Normalize query to lowercase tokens"""

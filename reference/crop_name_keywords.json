@@ -1,0 +1,314 @@
+{
+  "crop_groups": {
+    "Grain": {
+      "description": "Small grains including wheat, oats, barley, rye",
+      "keywords": ["grain", "grains", "cereal", "cereals", "small grain"],
+      "crops": {
+        "24": {
+          "cdl_code": 24,
+          "crop_name": "Winter Wheat",
+          "keywords": ["winter wheat", "wheat", "winter grain"],
+          "synonyms": ["w wheat", "wwht"]
+        },
+        "23": {
+          "cdl_code": 23,
+          "crop_name": "Spring Wheat",
+          "keywords": ["spring wheat", "wheat"],
+          "synonyms": ["s wheat", "swht"]
+        },
+        "21": {
+          "cdl_code": 21,
+          "crop_name": "Barley",
+          "keywords": ["barley"],
+          "synonyms": []
+        },
+        "27": {
+          "cdl_code": 27,
+          "crop_name": "Rye",
+          "keywords": ["rye"],
+          "synonyms": []
+        },
+        "28": {
+          "cdl_code": 28,
+          "crop_name": "Oats",
+          "keywords": ["oats", "oat"],
+          "synonyms": []
+        }
+      }
+    },
+    "Row Crop": {
+      "description": "Row crops including corn, soybeans, potatoes, beans",
+      "keywords": ["row crop", "row crops"],
+      "crops": {
+        "1": {
+          "cdl_code": 1,
+          "crop_name": "Corn",
+          "keywords": ["corn", "maize"],
+          "synonyms": ["field corn"]
+        },
+        "12": {
+          "cdl_code": 12,
+          "crop_name": "Sweet Corn",
+          "keywords": ["sweet corn", "corn"],
+          "synonyms": []
+        },
+        "5": {
+          "cdl_code": 5,
+          "crop_name": "Soybeans",
+          "keywords": ["soybeans", "soy", "soybean"],
+          "synonyms": ["soya"]
+        },
+        "43": {
+          "cdl_code": 43,
+          "crop_name": "Potatoes",
+          "keywords": ["potatoes", "potato", "spuds"],
+          "synonyms": []
+        },
+        "42": {
+          "cdl_code": 42,
+          "crop_name": "Dry Beans",
+          "keywords": ["dry beans", "beans", "bean"],
+          "synonyms": []
+        },
+        "52": {
+          "cdl_code": 52,
+          "crop_name": "Lentils",
+          "keywords": ["lentils", "lentil"],
+          "synonyms": []
+        },
+        "53": {
+          "cdl_code": 53,
+          "crop_name": "Peas",
+          "keywords": ["peas", "pea"],
+          "synonyms": []
+        }
+      }
+    },
+    "Hay/Forage": {
+      "description": "Hay and forage crops including alfalfa, grass hay, clover",
+      "keywords": ["hay", "forage", "pasture", "grass"],
+      "crops": {
+        "36": {
+          "cdl_code": 36,
+          "crop_name": "Alfalfa",
+          "keywords": ["alfalfa", "lucerne"],
+          "synonyms": []
+        },
+        "37": {
+          "cdl_code": 37,
+          "crop_name": "Other Hay/Non Alfalfa",
+          "keywords": ["hay", "grass hay", "non alfalfa", "other hay"],
+          "synonyms": ["timothy", "orchard grass"]
+        },
+        "58": {
+          "cdl_code": 58,
+          "crop_name": "Clover/Wildflowers",
+          "keywords": ["clover", "wildflowers", "clover wildflower"],
+          "synonyms": []
+        },
+        "176": {
+          "cdl_code": 176,
+          "crop_name": "Grassland/Pasture",
+          "keywords": ["grassland", "pasture", "grazing", "rangeland"],
+          "synonyms": []
+        },
+        "181": {
+          "cdl_code": 181,
+          "crop_name": "Pasture/Hay",
+          "keywords": ["pasture", "hay", "pasture hay"],
+          "synonyms": []
+        }
+      }
+    },
+    "Tree Fruit/Nuts": {
+      "description": "Orchards and nut crops",
+      "keywords": ["orchard", "fruit", "tree crop", "nut", "nuts"],
+      "crops": {
+        "68": {
+          "cdl_code": 68,
+          "crop_name": "Apples",
+          "keywords": ["apples", "apple", "apple orchard"],
+          "synonyms": []
+        },
+        "69": {
+          "cdl_code": 69,
+          "crop_name": "Grapes",
+          "keywords": ["grapes", "grape", "vineyard", "wine grape"],
+          "synonyms": ["vines"]
+        },
+        "72": {
+          "cdl_code": 72,
+          "crop_name": "Cherries",
+          "keywords": ["cherries", "cherry", "cherry orchard"],
+          "synonyms": []
+        },
+        "75": {
+          "cdl_code": 75,
+          "crop_name": "Pears",
+          "keywords": ["pears", "pear", "pear orchard"],
+          "synonyms": []
+        },
+        "74": {
+          "cdl_code": 74,
+          "crop_name": "Peaches",
+          "keywords": ["peaches", "peach", "peach orchard"],
+          "synonyms": []
+        },
+        "70": {
+          "cdl_code": 70,
+          "crop_name": "Christmas Trees",
+          "keywords": ["christmas trees", "tree farm", "xmas trees"],
+          "synonyms": []
+        },
+        "71": {
+          "cdl_code": 71,
+          "crop_name": "Other Tree Crops",
+          "keywords": ["tree crops", "orchard", "other trees"],
+          "synonyms": []
+        },
+        "75": {
+          "cdl_code": 75,
+          "crop_name": "Walnuts",
+          "keywords": ["walnuts", "walnut", "walnut orchard"],
+          "synonyms": []
+        },
+        "76": {
+          "cdl_code": 76,
+          "crop_name": "Almonds",
+          "keywords": ["almonds", "almond", "almond orchard"],
+          "synonyms": []
+        }
+      }
+    },
+    "Vegetables": {
+      "description": "Vegetable crops",
+      "keywords": ["vegetables", "veggie", "veggies"],
+      "crops": {
+        "47": {
+          "cdl_code": 47,
+          "crop_name": "Misc Vegs & Fruits",
+          "keywords": ["vegetables", "veggies", "misc vegetables", "mixed vegetables"],
+          "synonyms": []
+        },
+        "49": {
+          "cdl_code": 49,
+          "crop_name": "Onions",
+          "keywords": ["onions", "onion"],
+          "synonyms": []
+        },
+        "50": {
+          "cdl_code": 50,
+          "crop_name": "Lettuce",
+          "keywords": ["lettuce", "greens"],
+          "synonyms": []
+        },
+        "206": {
+          "cdl_code": 206,
+          "crop_name": "Carrots",
+          "keywords": ["carrots", "carrot"],
+          "synonyms": []
+        },
+        "12": {
+          "cdl_code": 12,
+          "crop_name": "Sweet Corn",
+          "keywords": ["sweet corn", "corn"],
+          "synonyms": []
+        }
+      }
+    },
+    "Specialty": {
+      "description": "Specialty crops including berries, mint, hops",
+      "keywords": ["specialty", "specialty crop"],
+      "crops": {
+        "57": {
+          "cdl_code": 57,
+          "crop_name": "Herbs",
+          "keywords": ["herbs", "herb"],
+          "synonyms": []
+        },
+        "14": {
+          "cdl_code": 14,
+          "crop_name": "Mint",
+          "keywords": ["mint", "peppermint", "spearmint"],
+          "synonyms": []
+        },
+        "33": {
+          "cdl_code": 33,
+          "crop_name": "Camelina",
+          "keywords": ["camelina", "false flax"],
+          "synonyms": []
+        },
+        "60": {
+          "cdl_code": 60,
+          "crop_name": "Switchgrass",
+          "keywords": ["switchgrass"],
+          "synonyms": []
+        },
+        "242": {
+          "cdl_code": 242,
+          "crop_name": "Blueberries",
+          "keywords": ["blueberries", "blueberry", "berry"],
+          "synonyms": []
+        },
+        "67": {
+          "cdl_code": 67,
+          "crop_name": "Berries",
+          "keywords": ["berries", "berry"],
+          "synonyms": []
+        },
+        "11": {
+          "cdl_code": 11,
+          "crop_name": "Canola",
+          "keywords": ["canola", "rapeseed"],
+          "synonyms": []
+        },
+        "31": {
+          "cdl_code": 31,
+          "crop_name": "Canola",
+          "keywords": ["canola", "rapeseed"],
+          "synonyms": []
+        }
+      }
+    },
+    "Fallow/Idle": {
+      "description": "Fallow and idle cropland",
+      "keywords": ["fallow", "idle", "unused", "bare ground"],
+      "crops": {
+        "61": {
+          "cdl_code": 61,
+          "crop_name": "Fallow/Idle Cropland",
+          "keywords": ["fallow", "idle", "idle cropland", "fallow ground", "bare soil"],
+          "synonyms": []
+        }
+      }
+    }
+  },
+  "query_patterns": {
+    "crop_specific": [
+      "show me [crop name]",
+      "what fields have [crop name]",
+      "[crop name] fields",
+      "where is [crop name] growing",
+      "find [crop name]"
+    ],
+    "crop_general": [
+      "what crops",
+      "show crops",
+      "crop types",
+      "what's planted",
+      "what's growing",
+      "crop classification"
+    ],
+    "crop_group": [
+      "[group name] crops",
+      "show me [group name]",
+      "find [group name] fields"
+    ]
+  },
+  "normalization_rules": {
+    "pluralization": "Normalize plural forms (e.g., 'cherries' → 'cherry', 'grapes' → 'grape')",
+    "case_insensitive": "All matching should be case-insensitive",
+    "partial_matching": "Allow partial matches (e.g., 'wheat' matches both 'Winter Wheat' and 'Spring Wheat')",
+    "synonym_expansion": "Expand synonyms during matching (e.g., 'maize' → 'corn')"
+  }
+}

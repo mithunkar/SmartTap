@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sqlite3
 import re
-from pathlib import Path
 from typing import Any, Dict, List, cast
 
 import pandas as pd
@@ -23,6 +22,7 @@ from .evidence_router import (
     route_evidence_pattern,
 )
 from .location_resolver import display_location_name, resolve_agrimet_location, supported_agrimet_locations
+from .paths import CDL_CODES_CSV, FIELD_POINTS_GPKG
 from .variable_registry import (
     AGRIMET_VARIABLES,
     OPENET_VARIABLES,
@@ -40,9 +40,7 @@ ANNUAL_OPENET_VARIABLES = {
     "IRR_EFF",
     "ITYPE",
 }
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-CDL_CODES_PATH = DATA_DIR / "CDL_Crop_Codes_Oregon.csv"
-FIELD_POINTS_GPKG = DATA_DIR / "field_points.gpkg"
+CDL_CODES_PATH = CDL_CODES_CSV
 
 
 def _load_crop_name_candidates() -> List[str]:

@@ -1,0 +1,69 @@
+{
+  "prompt": "How much irrigation water was consumed by rice farms in Lake County between 2018 and 2024?",
+  "spec": {
+    "partner_query_id": "workbook_row_12",
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Lake County",
+    "display_location": "Lake County",
+    "location_type": "county",
+    "variables": [
+      "IRR_CU_VOLUMEadj"
+    ],
+    "crop_filter": "Rice",
+    "start_date": "2018-01-01",
+    "end_date": "2024-12-31",
+    "interval": "monthly",
+    "evidence_pattern": "trend_single",
+    "source_datasets": [
+      "openet"
+    ],
+    "confirmation_status": "confirmed",
+    "statistics": [],
+    "clarification_needed": [],
+    "confirmed_fields": [],
+    "notes": [],
+    "chart_type": "line",
+    "openet_geo": "location",
+    "secondary_variables": [
+      "IRR_CU_VOLUMEadj"
+    ],
+    "chart_package": "single_trend"
+  },
+  "summary": {
+    "task": "visualize_timeseries",
+    "dataset": "openet",
+    "location": "Lake County",
+    "resolved_location": "Lake County",
+    "location_type": "county",
+    "station_id": null,
+    "station_title": null,
+    "variables": "IRR_CU_VOLUMEadj",
+    "variables_list": [
+      "IRR_CU_VOLUMEadj"
+    ],
+    "variable_labels": [
+      "Adjusted Irrigation Consumptive Use"
+    ],
+    "date_range": "2018-01-01 to 2024-10-01",
+    "source_datasets": [
+      "openet"
+    ],
+    "status": "success",
+    "crop_filter": "Rice",
+    "row_count": 82,
+    "evidence_pattern": "trend_single",
+    "chart_package": "single_trend"
+  },
+  "original_prompt": "How much irrigation water was consumed by rice farms in Lake County between 2018 and 2024?",
+  "rewritten": false,
+  "qa_review": {
+    "case_id": "workbook_row_12",
+    "executed_prompt": "How much irrigation water was consumed by rice farms in Lake County between 2018 and 2024?",
+    "original_prompt": "How much irrigation water was consumed by rice farms in Lake County between 2018 and 2024?",
+    "rewritten": false,
+    "rewrite_reason": null,
+    "status": "success",
+    "no_data_reason": null
+  }
+}

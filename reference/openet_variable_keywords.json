@@ -1,0 +1,294 @@
+{
+  "ETa": {
+    "variable_name": "Actual Evapotranspiration",
+    "description": "Total water consumed (crop + soil evaporation) from all sources (precipitation + irrigation)",
+    "units": "mm",
+    "keywords": [
+      "actual evapotranspiration",
+      "actual et",
+      "water demand",
+	  "crop water demand",
+      "evapotranspiration",
+      "et"
+    ],
+    "related_concepts": [
+      "crop water demand",
+      "field evaporation",
+      "plant transpiration",
+      "water lost to atmosphere"
+    ],
+    "example_queries": [
+      "How much water did the crops need?",
+      "What was the actual ET?",
+      "Show me water demand",
+      "What was the total evapotranspiration?"
+    ]
+  },
+  "PPT": {
+    "variable_name": "Precipitation Rate",
+    "description": "Total precipitation at surface from gridMET",
+    "units": "mm",
+    "keywords": [
+      "precipitation",
+      "precip",
+      "rainfall",
+      "rain",
+      "ppt",
+      "total precipitation",
+	  "precipitation rate"
+    ],
+    "related_concepts": [
+      "rain amount",
+      "precipitation total",
+      "rainfall amount"
+    ],
+    "example_queries": [
+      "How much rain fell?",
+      "What was the precipitation?",
+      "Show me rainfall",
+      "How much did it rain?"
+    ]
+  },
+  "P_rz": {
+    "variable_name": "Effective Precipitation",
+    "description": "Precipitation available for ET in root zone (excludes runoff and deep percolation)",
+    "units": "mm",
+    "keywords": [
+      "effective precipitation",
+      "effective rain",
+      "Prz",
+      "P_rz",
+      "available precipitation",
+      "usable rain",
+      "root zone precipitation"
+    ],
+    "related_concepts": [
+      "precipitation that plants can use",
+      "rain available to crops",
+      "precipitation minus runoff",
+      "soil moisture from rain"
+    ],
+    "example_queries": [
+      "How much rain was available to crops?",
+      "What was the effective precipitation?",
+      "Show me usable rainfall",
+      "How much rain reached the root zone?"
+    ]
+  },
+  "AW": {
+    "variable_name": "Applied Water",
+    "description": "Total irrigation water applied to field (CU / Efficiency)",
+    "units": "Ha-Meters",
+    "keywords": [
+      "applied water",
+      "irrigation volume applied",
+      "water applied",
+      "total irrigation",
+      "irrigation amount",
+      "applied irrigation",
+	    "water use",
+	    "irrigated water use",
+	    "estimated crop water use"
+    ],
+    "related_concepts": [
+      "water applied",
+      "irrigation delivery",
+      "gross irrigation",
+      "irrigation water applied"
+    ],
+    "example_queries": [
+      "How much water was irrigated?",
+      "What was the applied water?",
+      "Show me total irrigation",
+      "How much irrigation water was used?"
+    ]
+  },
+  "IRR_CU_VOLUME": {
+    "variable_name": "Consumptive Use of Irrigation Water",
+    "description": "Portion of ETa supplied by irrigation (ETa - Prz)",
+    "units": "Ha-Meters",
+    "keywords": [
+      "consumptive use",
+      "irrigation consumptive use",
+      "cu",
+      "irrigation consumption",
+      "water consumed from irrigation",
+      "net irrigation"
+    ],
+    "related_concepts": [
+      "irrigation water consumed",
+      "beneficial use",
+      "irrigation water used by crops",
+      "net water consumption"
+    ],
+    "example_queries": [
+      "How much irrigation water did crops use?",
+      "What was the consumptive use?",
+      "Show me irrigation consumption",
+      "How much irrigation water was consumed?"
+    ]
+  },
+  "IRR_CU_VOLUMEadj": {
+    "variable_name": "Adjusted Consumptive Use",
+    "description": "Consumptive use adjusted for soil moisture carryover",
+    "units": "Ha-Meters",
+    "keywords": [
+      "adjusted consumptive use",
+      "cu adjusted",
+      "adjusted cu",
+      "consumptive use adjusted"
+    ],
+    "related_concepts": [
+      "consumptive use with soil moisture",
+      "adjusted irrigation consumption",
+      "cu accounting for carryover"
+    ],
+    "example_queries": [
+      "Show me adjusted consumptive use",
+      "What was the CU with soil moisture adjustment?"
+    ]
+  },
+  "NIWR_VOLUME": {
+    "variable_name": "Net Irrigation Water Requirement",
+    "description": "Theoretical irrigation demand under non-stressed conditions (ETc - Prz)",
+    "units": "Ha-Meters",
+    "keywords": [
+      "net irrigation requirement",
+      "niwr",
+      "irrigation requirement",
+      "irrigation need",
+      "irrigation demand",
+      "theoretical irrigation need"
+    ],
+    "related_concepts": [
+      "ideal irrigation amount",
+      "crop irrigation need",
+      "irrigation needed for full productivity",
+      "irrigation demand for non-stress"
+    ],
+    "example_queries": [
+      "How much irrigation do crops need?",
+      "What is the irrigation requirement?",
+      "Show me crop water demand",
+      "What's the theoretical irrigation need?"
+    ]
+  },
+  "CROP": {
+    "variable_name": "Crop Type",
+    "description": "CDL Crop Class Mode (mapped to crop names)",
+    "units": "category",
+    "keywords": [
+      "crop",
+      "crop type",
+      "what crop",
+      "crop classification",
+      "planted crop",
+      "growing crop"
+    ],
+    "related_concepts": [
+      "crop category",
+      "agricultural product",
+      "planted species",
+      "crop class"
+    ],
+    "example_queries": [
+      "What crop is planted?",
+      "Show me the crop type",
+      "What are they growing?",
+      "What crops are in this field?"
+    ]
+  },
+  "IRR_STATUS": {
+    "variable_name": "Irrigation Status",
+    "description": "Binary classification (1=Irrigated, 0=Non-irrigated)",
+    "units": "boolean",
+    "keywords": [
+      "irrigated",
+      "irrigation status",
+      "is irrigated",
+      "irrigation active",
+      "under irrigation"
+    ],
+    "related_concepts": [
+      "irrigated land",
+      "irrigation classification",
+      "active irrigation"
+    ],
+    "example_queries": [
+      "Is this field irrigated?",
+      "Show me irrigation status",
+      "Which fields are irrigated?"
+    ]
+  },
+  "per_IRRIGATED": {
+    "variable_name": "Percent Irrigated",
+    "description": "Percentage of field area that is irrigated (from IrrMapper)",
+    "units": "percent",
+    "keywords": [
+      "percent irrigated",
+      "irrigated area",
+      "irrigation coverage",
+      "how much irrigated",
+      "irrigated fraction"
+    ],
+    "related_concepts": [
+      "irrigated percentage",
+      "portion irrigated",
+      "irrigation extent"
+    ],
+    "example_queries": [
+      "What percent of the field is irrigated?",
+      "How much of the area is under irrigation?",
+      "Show me irrigation coverage"
+    ]
+  },
+  "AREA": {
+    "variable_name": "Field Area",
+    "description": "Total field polygon area",
+    "units": "Hectares",
+    "keywords": [
+      "area",
+      "field size",
+      "acreage",
+      "field area",
+      "size",
+      "hectares",
+      "acres"
+    ],
+    "related_concepts": [
+      "field extent",
+      "land area",
+      "field footprint"
+    ],
+    "example_queries": [
+      "How big is the field?",
+      "What's the field area?",
+      "Show me field size",
+      "What's the acreage?"
+    ]
+  },
+  "srctype": {
+    "variable_name": "Water Source Type",
+    "description": "Irrigation water source (1=Groundwater, 2=Surface Water, 3=Mixed)",
+    "units": "category",
+    "keywords": [
+      "water source",
+      "irrigation source",
+      "groundwater",
+      "surface water",
+      "water supply",
+      "source type"
+    ],
+    "related_concepts": [
+      "water origin",
+      "irrigation supply source",
+      "groundwater vs surface water"
+    ],
+    "example_queries": [
+      "What's the water source?",
+      "Is this groundwater or surface water?",
+      "Show me irrigation source",
+      "Where does the water come from?"
+    ]
+  }
+}

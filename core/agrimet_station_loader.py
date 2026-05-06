@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
 
+from .paths import AGRIMET_STATIONS_METADATA, AGRIMET_STATIONS_METADATA_FALLBACK
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DEFAULT_METADATA_PATH = DATA_DIR / "agrimet_stations_full_metadata.csv"
-FALLBACK_METADATA_PATH = DATA_DIR / "agrimet_stations_full_metadata_pilot1_subset_v2_county.csv"
+DEFAULT_METADATA_PATH = AGRIMET_STATIONS_METADATA
+FALLBACK_METADATA_PATH = AGRIMET_STATIONS_METADATA_FALLBACK
 
 _DF: Optional[pd.DataFrame] = None
 

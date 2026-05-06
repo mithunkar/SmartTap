@@ -15,6 +15,7 @@ from collections import Counter
 from datetime import datetime
 
 from .crop_utils import matching_crop_codes
+from .paths import CDL_CODES_CSV, FIELD_POINTS_GPKG
 
 
 GROUPABLE_FIELDS = {"IRR_STATUS", "ITYPE", "CROP"}
@@ -45,8 +46,8 @@ class LocationCropQuery:
         else:
             base_path = Path(base_path)
         
-        self.field_points_gpkg = base_path / "data" / "field_points.gpkg"
-        self.cdl_codes_csv = base_path / "data" / "CDL_Crop_Codes_Oregon.csv"
+        self.field_points_gpkg = FIELD_POINTS_GPKG if base_path == Path(__file__).parent.parent else base_path / "data" / "field_points.gpkg"
+        self.cdl_codes_csv = CDL_CODES_CSV if base_path == Path(__file__).parent.parent else base_path / "reference" / "CDL_Crop_Codes_Oregon.csv"
         
         # Determine crop data source
         if full_oregon_gpkg and Path(full_oregon_gpkg).exists():

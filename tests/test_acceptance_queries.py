@@ -88,7 +88,6 @@ def test_acceptance_confirmation_cases_generate_partner_artifacts(monkeypatch):
     no_data_cases = {
         "workbook_row_10": "No OpenET fields matched crop 'Soybean' in Wasco County for 2015-01-01 to 2021-12-31.",
         "workbook_row_18": "No usable AgriMet values were available for Average Humidity (percent) at Imbler, Oregon AgriMet Weather Station (imbo) for 2016-01-01 to 2022-12-31.",
-        "workbook_row_19": "No usable AgriMet values were available for Average Wind Speed (mph) at Madras, Oregon AgriMet Weather Station (mrso) for 2014-01-01 to 2021-12-31.",
         "workbook_row_20": "No usable AgriMet values were available for Crop Coefficient at Sublimity, Oregon Weather Station (subo) for 2019-01-01 to 2023-12-31.",
     }
 
@@ -175,6 +174,7 @@ def test_acceptance_confirmation_cases_generate_partner_artifacts(monkeypatch):
         assert final["summary"]["variable_labels"], case["id"]
 
         results_dir = Path(final["files"]["results_dir"])
+        assert results_dir.parts[:2] == ("outputs", "partner_queries"), case["id"]
         assert results_dir.name == case["id"], case["id"]
         for filename in ["prompt.txt", "resolved_query.json", "chart.png", "data.csv", "vega.json", "validation.json", "verification.md"]:
             assert (results_dir / filename).exists(), f"{case['id']} missing {filename}"

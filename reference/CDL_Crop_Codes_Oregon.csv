@@ -1,0 +1,101 @@
+CDL_Code,Crop_Name,FieldYear_Count,CDL_Domain,Crop_Group,Annual_Perennial
+1,Corn,189053.0,Crop,Row Crop,Annual
+4,Sorghum,210.0,Crop,Row Crop,Annual
+5,Soybeans,219.0,Crop,Row Crop,Annual
+6,Sunflower,633.0,Crop,Row Crop,Annual
+12,Sweet Corn,17168.0,Crop,Row Crop,Annual
+13,Pop or Orn Corn,82.0,Crop,Row Crop,Annual
+14,Mint,5597.0,Crop,Specialty,Perennial
+21,Barley,17139.0,Crop,Grain,Annual
+22,Durum Wheat,10.0,Crop,Grain,Annual
+23,Spring Wheat,73162.0,Crop,Grain,Annual
+24,Winter Wheat,455631.0,Crop,Grain,Annual
+25,Other Small Grains,839.0,Crop,Grain,Annual
+27,Rye,1413.0,Crop,Grain,Annual
+28,Oats,7992.0,Crop,Grain,Annual
+29,Millet,64.0,Crop,Grain,Annual
+30,Speltz,5.0,Crop,Grain,Annual
+31,Canola,1969.0,Crop,Row Crop,Annual
+32,Flaxseed,66.0,Crop,Row Crop,Annual
+33,Safflower,96.0,Crop,Row Crop,Annual
+34,Rape Seed,67.0,Crop,Row Crop,Annual
+35,Mustard,450.0,Crop,Row Crop,Annual
+36,Alfalfa,1154159.0,Crop,Hay/Forage,Perennial
+37,Other Hay/Non Alfalfa,533394.0,Crop,Hay/Forage,Perennial
+38,Camelina,191.0,Crop,Row Crop,Annual
+39,Buckwheat,157.0,Crop,Grain,Annual
+41,Sugarbeets,14097.0,Crop,Row Crop,Annual
+42,Dry Beans,26820.0,Crop,Row Crop,Annual
+43,Potatoes,55478.0,Crop,Row Crop,Annual
+44,Other Crops,15264.0,Crop,Other Crop,Annual
+45,Sugarcane,1.0,Crop,Row Crop,Perennial
+46,Sweet Potatoes,35.0,Crop,Row Crop,Annual
+47,Misc Vegs & Fruits,109689.0,Crop,Vegetable,Annual
+48,Watermelons,478.0,Crop,Vegetable,Annual
+49,Onions,30352.0,Crop,Vegetable,Annual
+50,Cucumbers,12.0,Crop,Vegetable,Annual
+51,Chick Peas,1642.0,Crop,Row Crop,Annual
+52,Lentils,44.0,Crop,Row Crop,Annual
+53,Peas,20491.0,Crop,Row Crop,Annual
+54,Tomatoes,2.0,Crop,Vegetable,Annual
+55,Caneberries,1460.0,Crop,Berry,Perennial
+56,Hops,13971.0,Crop,Specialty,Perennial
+57,Herbs,13124.0,Crop,Specialty,Annual
+58,Clover/Wildflowers,30522.0,Crop,Hay/Forage,Perennial
+59,Sod/Grass Seed,605451.0,Crop,Hay/Forage,Perennial
+61,Fallow/Idle Cropland,412808.0,Non-Crop,Fallow,
+63,Forest,68.0,Non-Crop,Forest,Perennial
+66,Cherries,51139.0,Crop,Tree Fruit,Perennial
+67,Peaches,2177.0,Crop,Tree Fruit,Perennial
+68,Apples,41896.0,Crop,Tree Fruit,Perennial
+69,Grapes,61379.0,Crop,Vineyard,Perennial
+70,Christmas Trees,20934.0,Crop,Tree Crop,Perennial
+71,Other Tree Crops,96495.0,Crop,Tree Crop,Perennial
+75,Almonds,25.0,Crop,Tree Nut,Perennial
+76,Walnuts,425.0,Crop,Tree Nut,Perennial
+77,Pears,46164.0,Crop,Tree Fruit,Perennial
+82,Developed,639.0,Other,Developed,
+87,Wetlands,337.0,Other,Wetland,Perennial
+111,Open Water,7115.0,NLCD,Water,
+121,Developed/Open Space,564076.0,NLCD,Developed,
+122,Developed/Low Intensity,196345.0,NLCD,Developed,
+123,Developed/Med Intensity,27814.0,NLCD,Developed,
+124,Developed/High Intensity,6588.0,NLCD,Developed,
+131,Barren,2388.0,NLCD,Barren,
+141,Deciduous Forest,5682.0,NLCD,Forest,Perennial
+142,Evergreen Forest,127762.0,NLCD,Forest,Perennial
+143,Mixed Forest,22345.0,NLCD,Forest,Perennial
+152,Shrubland,1224229.0,NLCD,Rangeland,Perennial
+176,Grassland/Pasture,3704666.0,NLCD/Crop,Pasture/Range,Perennial
+190,Woody Wetlands,40949.0,NLCD,Wetland,Perennial
+195,Herbaceous Wetlands,256335.0,NLCD,Wetland,Perennial
+205,Triticale,6646.0,Crop,Grain,Annual
+206,Carrots,2333.0,Crop,Vegetable,Annual
+207,Asparagus,353.0,Crop,Vegetable,Perennial
+208,Garlic,681.0,Crop,Vegetable,Annual
+209,Cantaloupes,12.0,Crop,Vegetable,Annual
+210,Prunes,11.0,Crop,Tree Fruit,Perennial
+214,Broccoli,217.0,Crop,Vegetable,Annual
+216,Peppers,76.0,Crop,Vegetable,Annual
+218,Nectarines,24.0,Crop,Tree Fruit,Perennial
+219,Greens,245.0,Crop,Vegetable,Annual
+220,Plums,475.0,Crop,Tree Fruit,Perennial
+221,Strawberries,376.0,Crop,Berry,Annual
+222,Squash,1575.0,Crop,Vegetable,Annual
+223,Apricots,47.0,Crop,Tree Fruit,Perennial
+224,Vetch,463.0,Crop,Hay/Forage,Annual
+225,Dbl Crop WinWht/Corn,149.0,Crop,Double Crop,Annual
+226,Dbl Crop Oats/Corn,8.0,Crop,Double Crop,Annual
+227,Lettuce,65.0,Crop,Vegetable,Annual
+228,Dbl Crop Triticale/Corn,502.0,Crop,Double Crop,Annual
+229,Pumpkins,360.0,Crop,Vegetable,Annual
+236,Dbl Crop WinWht/Sorghum,5.0,Crop,Double Crop,Annual
+237,Dbl Crop Barley/Corn,20.0,Crop,Double Crop,Annual
+241,Dbl Crop Corn/Soybeans,9673.0,Crop,Double Crop,Annual
+242,Blueberries,11872.0,Crop,Berry,Perennial
+243,Cabbage,151.0,Crop,Vegetable,Annual
+244,Cauliflower,259.0,Crop,Vegetable,Annual
+246,Radishes,2294.0,Crop,Vegetable,Annual
+247,Turnips,612.0,Crop,Vegetable,Annual
+249,Gourds,89.0,Crop,Vegetable,Annual
+250,Cranberries,688.0,Crop,Berry,Perennial

@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import sqlite3
 from functools import lru_cache
-from pathlib import Path
 from typing import Dict, List, TypedDict
 
 import pandas as pd
@@ -14,10 +13,10 @@ from .agrimet_station_loader import (
     load_agrimet_station_metadata,
     supported_agrimet_locations as _loader_supported_locations,
 )
+from .paths import FIELD_POINTS_GPKG
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-FIELD_POINTS_PATH = BASE_DIR / "data" / "field_points.gpkg"
+FIELD_POINTS_PATH = FIELD_POINTS_GPKG
 
 
 class AgrimetLocationResolution(TypedDict, total=False):

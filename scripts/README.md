@@ -1,43 +1,56 @@
 # SmartTap Scripts
 
-Utility scripts for setup, maintenance, and data management.
+These are the active utility scripts for setup and handoff.
 
 ## Active Utilities
 
-### Setup
-- **`extract_oregon_data.py`** - Extract the full Oregon geopackage from compressed archive
-  ```bash
-  python scripts/extract_oregon_data.py
-  ```
-  Extracts `data/archive/preliminary_or_field_geopackage.7z` → `data/preliminary_or_field_geopackage.gpkg`
+### `extract_oregon_data.py`
 
-### Data Management
-- **`fetch_agrimet_data.py`** - Download AgriMet weather data
-  ```bash
-  python scripts/fetch_agrimet_data.py
-  ```
-  Fetches weather data from USBR API to populate `data/agrimet/` directory
-  
-  **When to use**: To refresh/update local weather CSV files
+Extracts the statewide OpenET GeoPackage:
 
-### Station Lookup
-- **`list_stations.py`** - Find AgriMet weather stations
-  ```bash
-  # Search for stations
-  python scripts/list_stations.py --search "Salem"
-  
-  # Browse by state
-  python scripts/list_stations.py --state OR
-  python scripts/list_stations.py --state WA
-  ```
-  Lists available weather stations by location or state
+```bash
+python scripts/extract_oregon_data.py
+```
 
-## Archived Scripts
+Input:
 
-Development and one-time use scripts are in [`archive/`](archive/README.md).
+- `data/archive/preliminary_or_field_geopackage.7z`
 
-## Usage Notes
+Output:
 
-- Run scripts from project root: `python scripts/script_name.py`
-- Most scripts have `--help` for usage info
-- Scripts assume virtual environment is activated
+- `data/preliminary_or_field_geopackage.gpkg`
+
+### `fetch_agrimet_data.py`
+
+Downloads AgriMet weather CSVs into `data/agrimet/`:
+
+```bash
+python scripts/fetch_agrimet_data.py
+```
+
+### `list_stations.py`
+
+Looks up AgriMet stations by name or state:
+
+```bash
+python scripts/list_stations.py --search "Salem"
+python scripts/list_stations.py --state OR
+```
+
+### `export_qa_bundle.py`
+
+Exports the tracked workbook QA bundle into `artifacts/qa/` by default:
+
+```bash
+python scripts/export_qa_bundle.py --clean
+```
+
+## Archive Boundary
+
+Legacy and one-time utilities live in [`scripts/archive/README.md`](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/scripts/archive/README.md). They are not part of the active runtime path unless explicitly called out.
+
+## Notes
+
+- Run scripts from the project root
+- Most scripts support `--help`
+- Active scripts should only write to local data directories or tracked handoff artifact directories intentionally

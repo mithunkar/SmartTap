@@ -16,10 +16,11 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from smarttap_service import process_query
+from core.paths import QA_ARTIFACTS_DIR
 
 
 FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "acceptance_queries.json"
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "QA"
+DEFAULT_OUTPUT_DIR = QA_ARTIFACTS_DIR
 CASE_ID_RANGE = range(2, 21)
 CASE_IDS = {f"workbook_row_{index:02d}" for index in CASE_ID_RANGE}
 
@@ -69,6 +70,22 @@ def build_seed_spec(case: Dict[str, Any]) -> Dict[str, Any]:
     spec["confirmation_status"] = "confirmed"
 
     return spec
+
+
+def case_prompt(case: Dict[str, Any]) -> str:
+    return str(case.get("prompt") or "").strip()
+
+
+def case_original_prompt(case: Dict[str, Any]) -> str:
+    return str(case.get("original_prompt") or case_prompt(case)).strip()
+
+
+def case_rewrite_reason(case: Dict[str, Any]) -> str:
+    return str(case.get("rewrite_reason") or "").strip()
+
+
+def case_is_rewritten(case: Dict[str, Any]) -> bool:
+    return case_original_prompt(case) != case_prompt(case)
 
 
 @contextmanager
@@ -126,6 +143,26 @@ def copy_required_artifacts(result: Dict[str, Any], run_dir: Path, destination_d
         shutil.copy2(source_path, destination_dir / target_name)
 
 
+def enrich_case_spec(case_dir: Path, case: Dict[str, Any], result: Dict[str, Any]) -> None:
+    spec_path = case_dir / "spec.json"
+    payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    payload["prompt"] = case_prompt(case)
+    payload["original_prompt"] = case_original_prompt(case)
+    payload["rewritten"] = case_is_rewritten(case)
+    if case_rewrite_reason(case):
+        payload["rewrite_reason"] = case_rewrite_reason(case)
+    payload["qa_review"] = {
+        "case_id": str(case["id"]),
+        "executed_prompt": case_prompt(case),
+        "original_prompt": case_original_prompt(case),
+        "rewritten": case_is_rewritten(case),
+        "rewrite_reason": case_rewrite_reason(case) or None,
+        "status": str((result.get("summary") or {}).get("status") or "success"),
+        "no_data_reason": (result.get("summary") or {}).get("no_data_reason"),
+    }
+    spec_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
 def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) -> Dict[str, Any]:
     case_id = str(case["id"])
     folder_name = export_folder_name(case_id, positions)
@@ -134,16 +171,20 @@ def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) 
 
     summary: Dict[str, Any] = {
         "case_id": case_id,
-        "prompt": case["prompt"],
+        "prompt": case_prompt(case),
+        "original_prompt": case_original_prompt(case),
+        "rewritten": case_is_rewritten(case),
+        "rewrite_reason": case_rewrite_reason(case) or None,
         "folder": folder_name,
         "status": "failed",
         "error": None,
+        "no_data_reason": None,
     }
 
     with tempfile.TemporaryDirectory(prefix=f"qa_export_{case_id}_") as temp_dir:
         run_dir = Path(temp_dir)
         with temporary_cwd(run_dir):
-            result = process_query(case["prompt"], spec=spec)
+            result = process_query(case_prompt(case), spec=spec)
 
         if not result.get("success"):
             summary["error"] = (
@@ -155,8 +196,15 @@ def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) 
             return summary
 
         copy_required_artifacts(result, run_dir, case_dir)
+        enrich_case_spec(case_dir, case, result)
 
-    summary["status"] = str((result.get("summary") or {}).get("status") or "success")
+    result_summary = result.get("summary") or {}
+    summary["status"] = str(result_summary.get("status") or "success")
+    summary["no_data_reason"] = result_summary.get("no_data_reason")
+    summary["dataset"] = result_summary.get("dataset")
+    summary["location"] = result_summary.get("location")
+    summary["station_id"] = result_summary.get("station_id")
+    summary["variable_labels"] = result_summary.get("variable_labels")
     summary["artifacts"] = {
         "chart": str(case_dir / "chart.png"),
         "csv": str(case_dir / "data.csv"),
