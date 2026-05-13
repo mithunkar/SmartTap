@@ -564,6 +564,7 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     if view["mode"] == "single":
+        y_title = variable_label(use_vars[0]) if len(use_vars) == 1 else "Value"
         return {
             "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
             "title": title,
@@ -571,7 +572,7 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
             "mark": {"type": mark},
             "encoding": {
                 "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
-                "y": {"field": "value", "type": "quantitative", "title": "Value"},
+                "y": {"field": "value", "type": "quantitative", "title": y_title},
                 "color": {"field": "variable", "type": "nominal", "title": "Variable"},
                 "tooltip": [
                     {"field": "datetime", "type": "temporal"},
@@ -631,6 +632,7 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     # facet
+    facet_y_title = variable_label(use_vars[0]) if len(use_vars) == 1 else "Value"
     return {
         "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
         "title": title,
@@ -640,7 +642,7 @@ def vega_spec(payload: Dict[str, Any]) -> Dict[str, Any]:
             "mark": {"type": mark},
             "encoding": {
                 "x": {"field": "datetime", "type": "temporal", "title": "Date/Time"},
-                "y": {"field": "value", "type": "quantitative", "title": "Value"},
+                "y": {"field": "value", "type": "quantitative", "title": facet_y_title},
                 "tooltip": [
                     {"field": "datetime", "type": "temporal"},
                     {"field": "variable", "type": "nominal"},

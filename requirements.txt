@@ -9,6 +9,8 @@ matplotlib>=3.7.0
 
 # HTTP client for AgriMet API
 httpx>=0.24.0
+fastapi>=0.115.0
+uvicorn>=0.30.0
 
 # LLM integration
 ollama>=0.1.0
@@ -19,3 +21,6 @@ pyyaml>=6.0.0
 # Web UI (optional, only needed for web interface)
 streamlit>=1.28.0
 pillow>=10.0.0
+
+# Test dependencies
+pytest>=8.0.0

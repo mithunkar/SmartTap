@@ -1,0 +1,45 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-ink: #18231e;
+  --color-sand: #f7f1e7;
+  --color-forest: #274c3d;
+  --color-mist: #eef4ef;
+  --color-clay: #b25c3d;
+  --color-sky: #d8e6ef;
+  --color-border: rgba(24, 35, 30, 0.12);
+  --color-card: rgba(255, 255, 255, 0.82);
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(216, 230, 239, 0.9), transparent 34%),
+    linear-gradient(180deg, #f9f3e6 0%, #eef4ef 100%);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--color-ink);
+  font-family: "Avenir Next", "Helvetica Neue", sans-serif;
+  background: transparent;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+code,
+pre {
+  font-family: "SFMono-Regular", "Menlo", monospace;
+}

@@ -57,13 +57,41 @@ ollama serve
 
 See [data/README.md](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/data/README.md).
 
-4. Run the UI.
+4. Run the legacy Streamlit UI.
 
 ```bash
 ./run_ui.sh
 ```
 
 The UI starts at [http://localhost:8501](http://localhost:8501).
+
+## React UI + API
+
+SmartTap now also includes a React frontend backed by a FastAPI service.
+
+Start the API:
+
+```bash
+./run_api.sh
+```
+
+The API starts at [http://localhost:8000](http://localhost:8000).
+
+Start the React app in a second terminal:
+
+```bash
+./run_web.sh
+```
+
+The React app starts at [http://localhost:5173](http://localhost:5173) and proxies `/api/*` requests to the local FastAPI backend.
+
+Available API routes:
+
+- `GET /api/health`
+- `POST /api/query`
+- `POST /api/followup`
+- `POST /api/confirmation/edit`
+- `POST /api/confirmation/confirm`
 
 ## CLI
 
@@ -111,6 +139,14 @@ The lightweight wrapper below runs the same suite:
 
 ```bash
 python tests/run_tests.py
+```
+
+Frontend tests and build:
+
+```bash
+cd web
+npm test
+npm run build
 ```
 
 ## Handoff Docs

@@ -4,6 +4,8 @@ data/*
 !data/archive/
 data/archive/*
 !data/archive/README.md
+report/
+AgWater-RAG-LLM/
 
 # Runtime outputs and local evaluations
 outputs/
@@ -28,6 +30,8 @@ ENV/
 *.egg-info/
 dist/
 build/
+web/node_modules/
+web/dist/
 
 # IDE
 .vscode/

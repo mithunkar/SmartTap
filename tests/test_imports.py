@@ -16,6 +16,12 @@ def test_ui_import_is_safe():
     assert hasattr(module, "main")
 
 
+def test_api_import_is_safe():
+    sys.modules.pop("smarttap_api", None)
+    module = importlib.import_module("smarttap_api")
+    assert hasattr(module, "app")
+
+
 def test_ui_open_confirmation_editor_preserves_confirmation_context():
     sys.modules.pop("smarttap_ui", None)
     module = importlib.import_module("smarttap_ui")
