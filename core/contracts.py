@@ -34,6 +34,20 @@ class QuerySpec(TypedDict, total=False):
     location_type: LocationType
     station_id: str
     station_title: str
+    resolved_station_id: str
+    resolved_station_title: str
+    station_candidates: List[Dict[str, Any]]
+    api_station_candidates_tried: List[str]
+    station_install_date: str
+    valid_for_requested_range: bool
+    data_station_id: str
+    data_station_title: str
+    data_station_install_date: str
+    data_provenance_mode: str
+    local_bundle_prefix: str
+    available_years: List[int]
+    missing_years: List[int]
+    source_mode: str
     variables: List[str]
     start_date: str
     end_date: str

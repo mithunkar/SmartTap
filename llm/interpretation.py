@@ -3,8 +3,11 @@ from __future__ import annotations
 import json
 from datetime import date
 from pathlib import Path
+from typing import Any, Callable
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
-from .config import get_model_name
+from .config import OLLAMA_HOST, get_model_name
 from core.paths import CROP_NAME_KEYWORDS_JSON, OPENET_VARIABLE_KEYWORDS_JSON
 from core.variable_registry import variables_for_dataset
 
@@ -12,23 +15,46 @@ from core.variable_registry import variables_for_dataset
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
+class _HttpOllamaClient:
+    def __init__(self, *, host: str):
+        self._host = host.rstrip("/")
+
+    def chat(self, **kwargs: Any) -> dict[str, Any]:
+        payload = json.dumps({**kwargs, "stream": False}).encode("utf-8")
+        request = urllib_request.Request(
+            f"{self._host}/api/chat",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib_request.urlopen(request, timeout=90) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib_error.URLError as exc:
+            raise RuntimeError(
+                "SmartTap parsing could not reach the local Ollama server. Ensure Ollama is running "
+                f"and accessible at {self._host}."
+            ) from exc
+
+
 def _ollama_client():
     try:
         import ollama
-    except ModuleNotFoundError as exc:
-        raise RuntimeError(
-            "SmartTap parsing requires the optional 'ollama' package. Install dependencies with "
-            "`pip install -r requirements.txt` and ensure Ollama is running."
-        ) from exc
+    except ModuleNotFoundError:
+        return _HttpOllamaClient(host=OLLAMA_HOST)
     return ollama
 
 
 def load_prompt_template(template_name: str) -> str | None:
     prompt_path = PROMPTS_DIR / f"{template_name}.txt"
     try:
-        return prompt_path.read_text()
+        return prompt_path.read_text(encoding="utf-8")
     except FileNotFoundError:
         return None
+
+
+def load_prompt_template_path(prompt_path: str | Path) -> str:
+    return Path(prompt_path).read_text(encoding="utf-8")
 
 
 def load_keyword_mappings():
@@ -56,8 +82,14 @@ def build_agrimet_location_guidance() -> str:
     )
 
 
-def get_task_specification(user_query: str):
-    today = date.today().strftime("%Y-%m-%d")
+def build_system_prompt(
+    *,
+    template_name: str = "interpretation",
+    prompt_text: str | None = None,
+    prompt_path: str | Path | None = None,
+    today_value: str | None = None,
+) -> str:
+    today = today_value or date.today().strftime("%Y-%m-%d")
     last_year = int(today.split("-")[0]) - 1
     variable_keywords, _ = load_keyword_mappings()
     variable_hints = []
@@ -70,16 +102,46 @@ def get_task_specification(user_query: str):
             variable_hints.append(f"- {metadata.code} ({metadata.label}): {keywords}")
     variable_section = "\n".join(variable_hints)
 
-    prompt_template = load_prompt_template("interpretation") or "You convert agricultural questions into valid JSON."
-    system_prompt = prompt_template.format(
+    if prompt_text is not None:
+        prompt_template = prompt_text
+    elif prompt_path is not None:
+        prompt_template = load_prompt_template_path(prompt_path)
+    else:
+        prompt_template = load_prompt_template(template_name) or "You convert agricultural questions into valid JSON."
+
+    return prompt_template.format(
         today=today,
         variable_section=variable_section,
         last_year=last_year,
         agrimet_location_guidance=build_agrimet_location_guidance(),
     )
 
-    response = _ollama_client().chat(
-        model=get_model_name(),
+
+def _parser_error(message: str) -> dict[str, Any]:
+    return {"task": "error", "error_message": message}
+
+
+def get_task_specification(
+    user_query: str,
+    *,
+    model_name: str | None = None,
+    template_name: str = "interpretation",
+    prompt_text: str | None = None,
+    prompt_path: str | Path | None = None,
+    chat_client: Callable[..., Any] | None = None,
+) -> dict[str, Any]:
+    system_prompt = build_system_prompt(
+        template_name=template_name,
+        prompt_text=prompt_text,
+        prompt_path=prompt_path,
+    )
+
+    chat = chat_client
+    if chat is None:
+        chat = _ollama_client().chat
+
+    response = chat(
+        model=model_name or get_model_name(),
         format="json",
         messages=[
             {"role": "system", "content": system_prompt},
@@ -87,11 +149,18 @@ def get_task_specification(user_query: str):
         ],
     )
 
-    raw_content = response.message.content
+    raw_content = getattr(getattr(response, "message", None), "content", None)
+    if raw_content is None and isinstance(response, dict):
+        raw_content = (
+            response.get("message", {}) if isinstance(response.get("message"), dict) else {}
+        ).get("content")
+    if raw_content is None:
+        return _parser_error("Parser returned no content.")
+
     try:
         return json.loads(raw_content)
     except json.JSONDecodeError as exc:
-        return {"task": "error", "error_message": f"Parser returned invalid JSON: {exc}"}
+        return _parser_error(f"Parser returned invalid JSON: {exc}")
 
 
 if __name__ == "__main__":

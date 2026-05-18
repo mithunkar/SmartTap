@@ -295,6 +295,7 @@ def _common_summary(spec: Dict[str, Any], variables: list[str], df: pd.DataFrame
         "status": "success",
     }
     _set_optional(summary, "crop_filter", spec.get("crop_filter"))
+    _set_optional(summary, "source_mode", spec.get("source_mode"))
     _set_optional(summary, "fetch_mode", spec.get("fetch_mode"))
     _set_optional(summary, "station_resolution_mode", spec.get("station_resolution_mode"))
     return summary

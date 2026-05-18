@@ -26,6 +26,7 @@ from .paths import CDL_CODES_CSV, FIELD_POINTS_GPKG
 from .variable_registry import (
     AGRIMET_VARIABLES,
     OPENET_VARIABLES,
+    default_aggregation_for_variables,
     infer_variables_from_text,
     normalize_variable,
 )
@@ -420,8 +421,6 @@ def _infer_crop_filter(spec: Dict[str, Any], user_query: str) -> str:
 def _needs_location(spec: QuerySpec, task: str) -> bool:
     if task == "summarize_crops":
         return True
-    if spec.get("dataset") == "openet" and (spec.get("openet_geo") == "field" or spec.get("openet_id") or spec.get("huc8_code")):
-        return False
     return True
 
 
@@ -439,7 +438,12 @@ def collect_clarification_fields(spec: QuerySpec) -> List[str]:
         missing.append("location")
 
     if spec.get("dataset") == "agrimet" and spec.get("location"):
-        resolution = resolve_agrimet_location(str(spec.get("display_location") or spec.get("location")), local_only=False)
+        resolution = resolve_agrimet_location(
+            str(spec.get("display_location") or spec.get("location")),
+            local_only=False,
+            start_date=str(spec.get("start_date") or "") or None,
+            end_date=str(spec.get("end_date") or "") or None,
+        )
         if not resolution:
             missing.append("station")
 
@@ -521,7 +525,12 @@ def _apply_location_resolution(fixed: QuerySpec) -> QuerySpec:
         fixed["display_location"] = display_location_name(str(fixed["display_location"]), location_type)
         return fixed
 
-    resolution = resolve_agrimet_location(str(fixed["display_location"]), local_only=False)
+    resolution = resolve_agrimet_location(
+        str(fixed["display_location"]),
+        local_only=False,
+        start_date=str(fixed.get("start_date") or "") or None,
+        end_date=str(fixed.get("end_date") or "") or None,
+    )
     if not resolution:
         return fixed
 
@@ -541,10 +550,8 @@ def _apply_location_resolution(fixed: QuerySpec) -> QuerySpec:
         notes.append(
             f"Resolved {fixed['display_location']} to {resolution['station_title']} ({resolution.get('station_id', '')}) via {resolution['station_resolution_mode']}."
         )
-    elif not resolution.get("supported_local", True):
-        notes.append(
-            f"Local AgriMet data does not include {fixed['display_location']}; SmartTap will use the AgriMet API. Local CSV locations: {', '.join(supported_agrimet_locations())}."
-        )
+    if fixed.get("dataset") == "agrimet":
+        notes.append("Runtime AgriMet queries use the AgriMet API only.")
     if notes:
         fixed["notes"] = notes
     return fixed
@@ -634,7 +641,7 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
         fixed["chart_type"] = fixed.get("chart_type") or "line"
         fixed["interval"] = fixed.get("interval") or _default_interval(str(fixed["dataset"]), fixed["variables"])
         if fixed["dataset"] == "openet":
-            fixed["openet_geo"] = fixed.get("openet_geo") or ("location" if fixed.get("location") else "huc8")
+            fixed["openet_geo"] = "location"
     else:
         fixed["chart_type"] = fixed.get("chart_type") or "line"
 
@@ -646,6 +653,9 @@ def validate_and_fix_spec(spec: Dict[str, Any], user_query: str) -> Dict[str, An
 
     if any(token in (user_query or "").lower() for token in ["how many", "number of", "count"]) and "IRR_STATUS" in (fixed.get("variables") or []):
         fixed["aggregation"] = fixed.get("aggregation") or "sum"
+
+    if fixed.get("variables") and not fixed.get("aggregation"):
+        fixed["aggregation"] = default_aggregation_for_variables(fixed.get("variables") or [])
 
     inferred_crop = _infer_crop_filter(fixed, user_query)
     if inferred_crop:

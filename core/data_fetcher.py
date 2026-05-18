@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
@@ -9,19 +9,19 @@ from .contracts import DatasetAdapter, DatasetContract, QuerySpec
 from .agrimet_api import fetch_agrimet_api_data
 from .agrimet_station_loader import find_local_file_prefixes
 from .location_crop_query import LocationCropQuery
-from .location_resolver import normalize_location_text, resolve_agrimet_location
+from .location_resolver import normalize_location_text, resolve_agrimet_candidates
 from . import location_resolver as _location_resolver
 from .paths import (
     AGRIMET_DIR,
-    BASE_DIR,
-    DATA_DIR,
-    FIELD_POINTS_GPKG,
     FULL_OREGON_GPKG,
-    OPENET_DIR,
-    OPENET_FIELD_COMBINED,
-    OPENET_HUC_COMBINED,
 )
-from .variable_registry import AGRIMET_VARIABLES, OPENET_VARIABLES, normalize_openet_variable, variable_label
+from .variable_registry import (
+    AGRIMET_VARIABLES,
+    OPENET_VARIABLES,
+    default_aggregation_for_variables,
+    normalize_openet_variable,
+    variable_label,
+)
 
 
 class AgrimetAdapter:
@@ -43,7 +43,7 @@ class OpenETAdapter:
         location_kinds=("city", "county", "field"),
         default_interval="monthly",
         supported_variables=tuple(sorted(OPENET_VARIABLES)),
-        notes="Location queries use the statewide GeoPackage; legacy combined CSVs are only used for explicit field/HUC modes.",
+        notes="Runtime OpenET queries use the statewide GeoPackage only.",
     )
 
     def fetch(self, spec: QuerySpec) -> Dict[str, Any]:
@@ -56,25 +56,6 @@ DATASET_ADAPTERS: Dict[str, DatasetAdapter] = {
 }
 
 SUPPORTED_OPENET_GROUP_FIELDS = {"IRR_STATUS", "ITYPE", "CROP"}
-LOCAL_AGRIMET_VARIABLES = frozenset({"AVG_TMP", "OBM", "MX", "MN", "PC", "24_HR_PCP", "SR", "WS", "AV_WSPD"})
-API_ONLY_AGRIMET_VARIABLES = frozenset({"AVG_HUM", "TU", "ET", "PEN_ET", "Kc"})
-
-
-def _agrimet_fetch_mode(spec: Dict[str, Any]) -> str:
-    if os.getenv("AGRIMET_USE_API") == "1":
-        return "api_fallback"
-
-    variables = {str(value) for value in spec.get("variables") or []}
-    if any(variable in API_ONLY_AGRIMET_VARIABLES for variable in variables):
-        return "api_fallback"
-
-    if any(variable not in LOCAL_AGRIMET_VARIABLES for variable in variables):
-        return "api_fallback"
-
-    if not spec.get("supported_local", True):
-        return "api_fallback"
-
-    return "local"
 
 
 def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,34 +64,59 @@ def _normalize_agrimet_spec(spec: Dict[str, Any]) -> Dict[str, Any]:
     if not location:
         return resolved
 
-    match = resolve_agrimet_location(location, local_only=False)
+    candidates = resolve_agrimet_candidates(
+        location,
+        local_only=False,
+        start_date=str(resolved.get("start_date") or "") or None,
+        end_date=str(resolved.get("end_date") or "") or None,
+    )
+    if candidates:
+        resolved["station_candidates"] = [
+            {
+                "station_id": candidate.get("station_id"),
+                "station_title": candidate.get("station_title"),
+                "station_resolution_mode": candidate.get("station_resolution_mode"),
+                "station_install_date": candidate.get("station_install_date"),
+                "valid_for_requested_range": bool(candidate.get("valid_for_requested_range", True)),
+                "supported_local": bool(candidate.get("supported_local", False)),
+                "distance_km": candidate.get("distance_km"),
+            }
+            for candidate in candidates
+        ]
+    match = candidates[0] if candidates else None
     if not match:
         return resolved
 
     if match.get("display_location") and not resolved.get("display_location"):
         resolved["display_location"] = match["display_location"]
+    if match.get("station_id"):
+        resolved["resolved_station_id"] = match["station_id"]
     if match.get("station_id") and not resolved.get("station_id"):
         resolved["station_id"] = match["station_id"]
+    if match.get("station_title"):
+        resolved["resolved_station_title"] = match["station_title"]
     if match.get("station_title") and not resolved.get("station_title"):
         resolved["station_title"] = match["station_title"]
     if match.get("county_name") and not resolved.get("county_name"):
         resolved["county_name"] = match["county_name"]
     if match.get("station_resolution_mode"):
         resolved["station_resolution_mode"] = match["station_resolution_mode"]
+    if "valid_for_requested_range" in match:
+        resolved["valid_for_requested_range"] = bool(match.get("valid_for_requested_range", True))
+    if match.get("station_install_date"):
+        resolved["station_install_date"] = match["station_install_date"]
     resolved["supported_local"] = bool(match.get("supported_local", True))
+    resolved["source_mode"] = "agrimet_api"
 
     canonical_location = match.get("canonical_location")
     if canonical_location:
         resolved["location"] = canonical_location
-    resolved["fetch_mode"] = _agrimet_fetch_mode(resolved)
+    resolved["fetch_mode"] = "api"
     return resolved
 
 
 def _agrimet_file_prefix(location: str) -> str:
-    """
-    Resolve a location string to the file prefix used in local AgriMet CSVs.
-    Uses the full station metadata via agrimet_station_loader.
-    """
+    """Offline helper for local AgriMet bundle discovery; runtime fetches are API-only."""
     normalized = normalize_location_text(location)
     prefixes = find_local_file_prefixes(normalized)
 
@@ -127,11 +133,25 @@ def _agrimet_file_prefix(location: str) -> str:
     )
 
 
-def _require_file(path: Path, hint: str) -> None:
-    if not path.exists():
-        raise FileNotFoundError(f"Missing file: {path}\n{hint}")
+def get_data_files_for_range(location: str, start_date: str, end_date: str) -> List[Path]:
+    """Offline helper retained for QA utilities; runtime AgriMet reads use the API only."""
+    normalized = normalize_location_text(location)
+    prefixes = find_local_file_prefixes(normalized)
+    if not prefixes:
+        prefixes = [_agrimet_file_prefix(location)]
 
+    start_year = int((start_date or "2015-01-01").split("-")[0])
+    end_year = int((end_date or "2025-12-31").split("-")[0])
 
+    for prefix in prefixes:
+        files = [
+            AGRIMET_DIR / f"{prefix}_weather_{year}.csv"
+            for year in range(start_year, end_year + 1)
+            if (AGRIMET_DIR / f"{prefix}_weather_{year}.csv").exists()
+        ]
+        if files:
+            return files
+    return []
 def _apply_interval(df: pd.DataFrame, interval: str) -> pd.DataFrame:
     interval = (interval or "daily").lower()
     if interval == "daily":
@@ -160,16 +180,6 @@ def _normalize_openet_vars(values: List[str]) -> List[str]:
             continue
         normalized.append(normalize_openet_variable(value))
     return normalized
-
-
-def _pivot_long_to_wide(df: pd.DataFrame, time_col: str, var_col: str, value_col: str) -> pd.DataFrame:
-    return (
-        df.pivot_table(index=time_col, columns=var_col, values=value_col, aggfunc="mean")
-        .reset_index()
-        .sort_values(time_col)
-    )
-
-
 def _openet_no_data_message(
     *,
     location: str,
@@ -219,52 +229,32 @@ def _agrimet_no_sensor_message(
     return msg
 
 
-def get_data_files_for_range(location: str, start_date: str, end_date: str) -> List[Path]:
-    """
-    Find all local AgriMet CSV files for a location across a year range.
-    Tries all prefixes returned by the loader before giving up.
-    """
-    normalized = normalize_location_text(location)
-    prefixes = find_local_file_prefixes(normalized)
-    if not prefixes:
-        prefixes = [_agrimet_file_prefix(normalized)]
+def _agrimet_range_no_station_message(spec: Dict[str, Any]) -> str:
+    display = str(spec.get("display_location") or spec.get("location") or "this location")
+    labels = ", ".join(variable_label(variable) for variable in spec.get("variables", []) or []) or "requested variables"
+    date_range = ""
+    if spec.get("start_date") and spec.get("end_date"):
+        date_range = f" for {spec['start_date']} to {spec['end_date']}"
 
-    start_year = int((start_date or "2015-01-01").split("-")[0])
-    end_year = int((end_date or "2025-12-31").split("-")[0])
-
-    for prefix in prefixes:
-        files: List[Path] = []
-        for year in range(start_year, end_year + 1):
-            candidate = AGRIMET_DIR / f"{prefix}_weather_{year}.csv"
-            if candidate.exists():
-                files.append(candidate)
-        if files:
-            return files
-
-    return []
-
-
-def _load_local_agrimet_frame(spec: Dict[str, Any]) -> pd.DataFrame:
-    files = get_data_files_for_range(
-        spec.get("location", ""),
-        spec.get("start_date") or "2015-01-01",
-        spec.get("end_date") or "2025-12-31",
+    install_date = str(spec.get("station_install_date") or "").strip()
+    station_bits = " ".join(
+        value
+        for value in [
+            spec.get("resolved_station_title") or spec.get("station_title"),
+            f"({spec.get('resolved_station_id') or spec.get('station_id')})"
+            if (spec.get("resolved_station_id") or spec.get("station_id"))
+            else "",
+        ]
+        if value
     )
-    if not files:
-        raise FileNotFoundError(f"No AgriMet files found for {spec.get('location')}.")
+    message = f"No AgriMet station active near {display} could serve {labels}{date_range}."
+    if station_bits and install_date:
+        message += f" Closest candidate: {station_bits}, installed {install_date}."
+    elif station_bits:
+        message += f" Closest candidate: {station_bits}."
+    return message
 
-    frames = [pd.read_csv(path) for path in files]
-    df = pd.concat(frames, ignore_index=True)
-    df["datetime"] = pd.to_datetime(df["date"], errors="coerce")
-    df = df.dropna(subset=["datetime"])
 
-    start_date = spec.get("start_date")
-    end_date = spec.get("end_date")
-    if start_date:
-        df = df[df["datetime"] >= pd.to_datetime(start_date)]
-    if end_date:
-        df = df[df["datetime"] <= pd.to_datetime(end_date)]
-    return df.sort_values("datetime").reset_index(drop=True)
 
 
 def _sensor_series(df: pd.DataFrame, column: str) -> pd.Series:
@@ -399,42 +389,94 @@ def _agrimet_api_no_data_message(spec: Dict[str, Any], detail: str | None = None
     return message
 
 
+def _apply_api_candidate(spec: Dict[str, Any], candidate: Dict[str, Any]) -> Dict[str, Any]:
+    updated = dict(spec)
+    station_id = str(candidate.get("station_id") or "").strip()
+    station_title = str(candidate.get("station_title") or "").strip()
+    if station_id:
+        updated["station_id"] = station_id
+        updated["data_station_id"] = station_id
+    if station_title:
+        updated["station_title"] = station_title
+        updated["data_station_title"] = station_title
+    if candidate.get("station_install_date"):
+        updated["data_station_install_date"] = str(candidate.get("station_install_date"))
+    updated["valid_for_requested_range"] = bool(candidate.get("valid_for_requested_range", True))
+    if station_id and updated.get("resolved_station_id") and updated.get("resolved_station_id") != station_id:
+        notes = list(updated.get("notes") or [])
+        notes.append(
+            f"Closest AgriMet candidate {updated.get('resolved_station_id')} returned no API data; using {station_id} instead."
+        )
+        updated["notes"] = notes
+    return updated
+
+
 def _fetch_agrimet_from_api(spec: Dict[str, Any]) -> Dict[str, Any]:
     spec = _normalize_agrimet_spec(spec)
+    spec["source_mode"] = "agrimet_api"
+    if spec.get("valid_for_requested_range") is False:
+        spec["no_data_reason"] = _agrimet_range_no_station_message(spec)
+        return {"spec": spec, "data": {"records": []}}
     display = spec.get("display_location") or spec.get("location") or "this location"
-    try:
-        df = fetch_agrimet_api_data(
-            location=str(spec.get("station_id") or spec.get("location") or "corvallis").lower(),
-            variables=spec.get("variables", []) or [],
-            start_date=spec.get("start_date") or "2024-01-01",
-            end_date=spec.get("end_date") or "2024-12-31",
-        )
-    except ValueError as exc:
-        spec["no_data_reason"] = _agrimet_api_no_data_message(spec, str(exc))
-        return {"spec": spec, "data": {"records": []}}
+    candidate_specs = [
+        dict(candidate)
+        for candidate in spec.get("station_candidates", []) or []
+        if bool(candidate.get("valid_for_requested_range", True))
+    ]
+    if not candidate_specs:
+        candidate_specs = [
+            {
+                "station_id": spec.get("station_id"),
+                "station_title": spec.get("station_title"),
+                "station_install_date": spec.get("station_install_date"),
+                "valid_for_requested_range": True,
+            }
+        ]
 
-    if df.empty:
-        spec["no_data_reason"] = _agrimet_api_no_data_message(spec, f"No AgriMet data returned from API for {display}.")
-        return {"spec": spec, "data": {"records": []}}
+    api_errors: List[str] = []
+    tried: List[str] = []
+    for candidate in candidate_specs:
+        station_id = str(candidate.get("station_id") or spec.get("station_id") or spec.get("location") or "corvallis").lower()
+        candidate_spec = _apply_api_candidate(spec, candidate)
+        tried.append(station_id)
+        try:
+            df = fetch_agrimet_api_data(
+                location=station_id,
+                variables=spec.get("variables", []) or [],
+                start_date=spec.get("start_date") or "2024-01-01",
+                end_date=spec.get("end_date") or "2024-12-31",
+            )
+        except ValueError as exc:
+            api_errors.append(f"{station_id}: {exc}")
+            continue
 
-    if "datetime" not in df.columns and "date" in df.columns:
-        df = df.rename(columns={"date": "datetime"})
-    elif "datetime" in df.columns and "date" in df.columns:
-        df = df.drop(columns=["date"])
-    result = _build_agrimet_result_frame(df, spec.get("variables", []) or [], spec)
-    result = _apply_interval(result, spec.get("interval", "daily"))
-    return _finalize_agrimet_payload(spec, result)
+        if df.empty:
+            api_errors.append(f"{station_id}: No AgriMet data returned from API for {display}.")
+            continue
+
+        candidate_spec["api_station_candidates_tried"] = tried
+        candidate_spec["source_mode"] = "agrimet_api"
+        candidate_spec["fetch_mode"] = "api"
+        if "datetime" not in df.columns and "date" in df.columns:
+            df = df.rename(columns={"date": "datetime"})
+        elif "datetime" in df.columns and "date" in df.columns:
+            df = df.drop(columns=["date"])
+        result = _build_agrimet_result_frame(df, spec.get("variables", []) or [], candidate_spec)
+        result = _apply_interval(result, spec.get("interval", "daily"))
+        return _finalize_agrimet_payload(candidate_spec, result)
+
+    spec["api_station_candidates_tried"] = tried
+    detail = None
+    if api_errors:
+        detail = api_errors[-1].split(": ", 1)[-1]
+        if len(tried) > 1:
+            detail = f"Tried stations {', '.join(tried)}. Last detail: {detail}"
+    spec["no_data_reason"] = _agrimet_api_no_data_message(spec, detail)
+    return {"spec": spec, "data": {"records": []}}
 
 
 def fetch_agrimet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
-    spec = _normalize_agrimet_spec(spec)
-    if spec.get("fetch_mode") == "api_fallback":
-        return _fetch_agrimet_from_api(spec)
-
-    df = _load_local_agrimet_frame(spec)
-    result = _build_agrimet_result_frame(df, spec.get("variables", []) or [], spec)
-    result = _apply_interval(result, spec.get("interval", "daily"))
-    return _finalize_agrimet_payload(spec, result)
+    return _fetch_agrimet_from_api(spec)
 
 
 def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
@@ -443,12 +485,14 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     start_date = spec.get("start_date")
     end_date = spec.get("end_date")
     interval = spec.get("interval", "monthly")
+    spec = dict(spec)
+    spec["source_mode"] = "openet_gpkg"
 
     if geo in {"location", "field"} and spec.get("location"):
         location = spec.get("location")
         location_type = (spec.get("location_type") or "city").lower()
         crop_filter = spec.get("crop_filter")
-        aggregation = spec.get("aggregation", "mean")
+        aggregation = spec.get("aggregation") or default_aggregation_for_variables(variables)
         query_system = LocationCropQuery(full_oregon_gpkg=str(FULL_OREGON_GPKG))
 
         results: Dict[str, pd.DataFrame] = {}
@@ -483,7 +527,6 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
                 no_data_reasons.append(str(metadata.get("no_data_reason") or ""))
 
         if not results:
-            spec = dict(spec)
             spec["no_data_reason"] = _openet_no_data_message(
                 location=str(location),
                 location_type=location_type,
@@ -501,53 +544,15 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         wide = wide.sort_values("datetime").reset_index(drop=True)
         wide = _apply_interval(wide, interval)
         return {"spec": spec, "data": {"records": wide.to_dict(orient="records")}}
-
-    if geo == "field":
-        _require_file(
-            OPENET_FIELD_COMBINED,
-            "Create data/openet/field_combined_long.csv for explicit non-location field queries, or use location-based OpenET queries backed by the statewide GeoPackage.",
-        )
-        df = pd.read_csv(OPENET_FIELD_COMBINED)
-        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-        df = df.dropna(subset=["datetime"])
-        if start_date:
-            df = df[df["datetime"] >= pd.to_datetime(start_date)]
-        if end_date:
-            df = df[df["datetime"] <= pd.to_datetime(end_date)]
-        if variables:
-            df = df[df["variable"].isin(variables)]
-        wide = _pivot_long_to_wide(df, "datetime", "variable", "value")
-        wide = _apply_interval(wide, interval)
-        return {"spec": spec, "data": {"records": wide.to_dict(orient="records")}}
-
-    _require_file(
-        OPENET_HUC_COMBINED,
-        "Create data/openet/huc_combined_long.csv for explicit non-location HUC queries, or use location-based OpenET queries backed by the statewide GeoPackage.",
+    raise ValueError(
+        "Runtime OpenET queries require a city or county location and use the Oregon GeoPackage only. "
+        "Legacy field/HUC CSV routes are disabled."
     )
-    df = pd.read_csv(OPENET_HUC_COMBINED)
-    if "datetime" not in df.columns and {"year", "month"}.issubset(df.columns):
-        df["datetime"] = pd.to_datetime(
-            dict(year=pd.to_numeric(df["year"]), month=pd.to_numeric(df["month"]), day=1),
-            errors="coerce",
-        )
-    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
-    df = df.dropna(subset=["datetime"])
-    if start_date:
-        df = df[df["datetime"] >= pd.to_datetime(start_date)]
-    if end_date:
-        df = df[df["datetime"] <= pd.to_datetime(end_date)]
-    if variables:
-        metric_col = "metric" if "metric" in df.columns else "variable"
-        df = df[df[metric_col].isin(variables)]
-        wide = _pivot_long_to_wide(df, "datetime", metric_col, "value")
-    else:
-        metric_col = "metric" if "metric" in df.columns else "variable"
-        wide = _pivot_long_to_wide(df, "datetime", metric_col, "value")
-    wide = _apply_interval(wide, interval)
-    return {"spec": spec, "data": {"records": wide.to_dict(orient="records")}}
 
 
 def fetch_openet_grouped_data(spec: Dict[str, Any]) -> Dict[str, Any]:
+    spec = dict(spec)
+    spec["source_mode"] = "openet_gpkg"
     location = spec.get("location")
     location_type = (spec.get("location_type") or "city").lower().strip()
     compare_by = str(spec.get("compare_by") or spec.get("split_by") or "").strip()
@@ -573,7 +578,7 @@ def fetch_openet_grouped_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         start_date=spec.get("start_date") or "2024-01-01",
         end_date=spec.get("end_date") or "2024-12-31",
         crop_filter=spec.get("crop_filter"),
-        aggregation=spec.get("aggregation", "mean"),
+        aggregation=spec.get("aggregation") or default_aggregation_for_variables(value_variables),
     )
     if frame.empty:
         raise ValueError(

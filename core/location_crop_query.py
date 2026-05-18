@@ -374,8 +374,15 @@ class LocationCropQuery:
         
         return result
     
-    def get_variable_timeseries(self, openet_ids: List[str], variable: str,                                 start_date: str, end_date: str, 
-                                aggregation: str = "mean") -> pd.DataFrame:
+    def get_variable_timeseries(
+        self,
+        openet_ids: List[str],
+        variable: str,
+        start_date: str,
+        end_date: str,
+        aggregation: str = "mean",
+        crop_filter: Optional[str] = None,
+    ) -> pd.DataFrame:
         """
         Get OpenET variable timeseries for specific fields
         
@@ -385,6 +392,7 @@ class LocationCropQuery:
             start_date: Start date (YYYY-MM-DD)
             end_date: End date (YYYY-MM-DD)
             aggregation: How to aggregate across fields ("mean", "sum", "median")
+            crop_filter: Optional crop filter applied per bucket year
         
         Returns:
             DataFrame with datetime and variable columns
@@ -398,8 +406,6 @@ class LocationCropQuery:
         start = pd.to_datetime(start_date)
         end = pd.to_datetime(end_date)
 
-        # Some query intents require yearly derived metrics from wide annual layers
-        # instead of monthly variable tables (e.g., CROP, IRR_STATUS, per_IRRIGATED, AREA).
         derived_vars = {"AREA", "ACRES_FTR_GEOM", "CROP", "IRR_STATUS", "per_IRRIGATED", "IRR_EFF", "ITYPE"}
         if variable in derived_vars:
             return self.get_annual_derived_timeseries(
@@ -407,131 +413,49 @@ class LocationCropQuery:
                 variable=variable,
                 start_date=start_date,
                 end_date=end_date,
-                crop_filter=None,
+                crop_filter=crop_filter,
                 aggregation=aggregation,
             )
-        
-        # Determine unit suffix for this variable
-        # Different variables use different units
-        unit_map = {
-            'ETa': '_in',
-            'PPT': '_in',
-            'P_rz': '_in',
-            'P_eft': '_in',
-            'NIWR': '_in',
-            'AW': '_acft',
-            'IRR_CU_VOLUME': '_acft',
-            'IRR_CU_VOLUMEadj': '_acft',
-            'NIWR_VOLUME': '_acft',
-            'PPT_VOLUME': '_acft',
-            'ET_VOLUME': '_acft',
-            'ETO_VOLUME': '_acft',
-            'ETD_VOLUME': '_acft',
-            'ETDa_VOLUME': '_acft',
-            'EFF_VOLUME': '_acft',
-            'WS_C': '',  # No unit suffix
-        }
-        unit_suffix = unit_map.get(variable, '_in')  # Default to _in if unknown
-        
-        # Determine which monthly columns to query
-        # Format: VAR_MM_YY_unit (e.g., ETa_01_20_in, AW_01_20_acft)
-        date_range = pd.date_range(start=start.replace(day=1), 
-                                   end=end.replace(day=1), freq='MS')
-        
-        columns_to_fetch = []
-        for dt in date_range:
-            # Format: MM_YY
-            month_year = dt.strftime("%m_%y")
-            col_name = f"{variable}_{month_year}{unit_suffix}"
-            columns_to_fetch.append((col_name, dt))
-        
-        if not columns_to_fetch:
+
+        date_range = pd.date_range(start=start.replace(day=1), end=end.replace(day=1), freq="MS")
+        if date_range.empty:
             print("No data columns found for date range")
             return pd.DataFrame()
-        
-        # Query geopackage
-        conn = sqlite3.connect(self.crop_gpkg)
-        
-        # First, check which columns actually exist in the table
-        check_query = f"PRAGMA table_info({variable})"
-        try:
-            table_info = pd.read_sql_query(check_query, conn)
-            existing_columns = set(table_info['name'].tolist())
-        except Exception as e:
-            print(f"Error checking table {variable}: {e}")
-            conn.close()
-            return pd.DataFrame()
-        
-        # Filter to only columns that exist
-        valid_columns = []
-        valid_dates = []
-        for col_name, dt in columns_to_fetch:
-            if col_name in existing_columns:
-                valid_columns.append(col_name)
-                valid_dates.append(dt)
-        
-        if not valid_columns:
-            print(f"No {variable} data columns found for date range {start_date} to {end_date}")
-            conn.close()
-            return pd.DataFrame()
-        
-        # Build column list
-        cols_str = ", ".join(valid_columns)
-        
-        # Build query
-        ids_str = "', '".join(openet_ids)
-        query = f"""
-        SELECT OPENET_ID, {cols_str}
-        FROM {variable}
-        WHERE OPENET_ID IN ('{ids_str}')
-        """
-        
-        try:
-            df = pd.read_sql_query(query, conn)
-        except Exception as e:
-            print(f"Error querying {variable}: {e}")
-            print(f"Ensure table '{variable}' exists in geopackage")
-            conn.close()
-            return pd.DataFrame()
-        
-        conn.close()
-        
-        if df.empty:
+
+        df_melted = self._load_monthly_variable_long(openet_ids, variable, start_date, end_date)
+        if df_melted.empty:
             print(f"No data found for {len(openet_ids)} fields")
             return pd.DataFrame()
-        
-        # Convert to long format
-        df_melted = df.melt(id_vars=['OPENET_ID'], 
-                           value_vars=valid_columns,
-                           var_name='month_col', 
-                           value_name=variable)
-        
-        # Map column names back to dates
-        col_to_date = {col: dt for col, dt in zip(valid_columns, valid_dates)}
-        df_melted['datetime'] = df_melted['month_col'].map(col_to_date)
-        
-        # Drop rows with missing dates (in case some columns didn't exist)
-        df_melted = df_melted.dropna(subset=['datetime'])
-        
-        # Aggregate across fields
+
+        if crop_filter:
+            years = sorted({int(ts.year) for ts in date_range})
+            crop_membership, _, crop_status = self._build_crop_membership_frame(openet_ids, years, crop_filter)
+            if crop_status != "filter_applied" or crop_membership.empty:
+                return pd.DataFrame()
+            df_melted["year"] = pd.to_datetime(df_melted["datetime"]).dt.year
+            df_melted = df_melted.merge(crop_membership[["OPENET_ID", "year"]], on=["OPENET_ID", "year"], how="inner")
+
+        values = pd.to_numeric(df_melted[variable], errors="coerce")
+        field_counts = df_melted.groupby("datetime")["OPENET_ID"].nunique().rename("field_count")
+
         if aggregation == "mean":
-            result = df_melted.groupby('datetime')[variable].mean().reset_index()
+            metric = values.groupby(df_melted["datetime"]).mean()
         elif aggregation == "sum":
-            result = df_melted.groupby('datetime')[variable].sum().reset_index()
+            metric = values.groupby(df_melted["datetime"]).sum(min_count=1)
         elif aggregation == "median":
-            result = df_melted.groupby('datetime')[variable].median().reset_index()
+            metric = values.groupby(df_melted["datetime"]).median()
         else:
             print(f"Unknown aggregation: {aggregation}, using mean")
-            result = df_melted.groupby('datetime')[variable].mean().reset_index()
-        
-        # Sort by date
-        result = result.sort_values('datetime').reset_index(drop=True)
-        
-        # Add field count column
-        result['field_count'] = len(openet_ids)
-        result['aggregation'] = aggregation
-        
-        return result
+            metric = values.groupby(df_melted["datetime"]).mean()
+
+        result = metric.rename(variable).reset_index()
+        result = result.merge(field_counts.reset_index(), on="datetime", how="left")
+        full_range = pd.DataFrame({"datetime": date_range})
+        result = full_range.merge(result, on="datetime", how="left")
+        result["field_count"] = pd.to_numeric(result["field_count"], errors="coerce").fillna(0).astype(int)
+        result["aggregation"] = aggregation
+
+        return result.sort_values("datetime").reset_index(drop=True)
 
     def _crop_codes_from_filter(self, crop_filter: Optional[str]) -> List[int]:
         if not crop_filter:
@@ -588,6 +512,54 @@ class LocationCropQuery:
             return [], matched_crop_names, "no_crop_fields"
         return filtered_ids, matched_crop_names, "filter_applied"
 
+    def _build_crop_membership_frame(
+        self,
+        openet_ids: List[str],
+        years: List[int],
+        crop_filter: Optional[str],
+    ) -> tuple[pd.DataFrame, List[str], str]:
+        columns = ["OPENET_ID", "year", "crop_code"]
+        if not crop_filter:
+            return pd.DataFrame(columns=columns), [], "no_filter"
+
+        matching_codes = self._crop_codes_from_filter(crop_filter)
+        if not matching_codes:
+            return pd.DataFrame(columns=columns), [], "unknown_crop"
+
+        matched_crop_names = [self.crop_names[code]["name"] for code in matching_codes[:3] if code in self.crop_names]
+        if not years or not openet_ids:
+            return pd.DataFrame(columns=columns), matched_crop_names, "no_crop_fields"
+
+        crop_cols = [f"CROP_{year}" for year in years]
+        conn = sqlite3.connect(self.crop_gpkg)
+        try:
+            crop_df = self._fetch_table_subset(conn, "CROP", ["OPENET_ID"] + crop_cols, openet_ids)
+        finally:
+            conn.close()
+
+        if crop_df.empty:
+            return pd.DataFrame(columns=columns), matched_crop_names, "no_crop_fields"
+
+        frames: List[pd.DataFrame] = []
+        matching_codes_set = set(matching_codes)
+        for year in years:
+            crop_col = f"CROP_{year}"
+            if crop_col not in crop_df.columns:
+                continue
+            frame = crop_df[["OPENET_ID", crop_col]].copy()
+            frame["crop_code"] = pd.to_numeric(frame[crop_col], errors="coerce")
+            frame = frame[frame["crop_code"].isin(matching_codes_set)]
+            if frame.empty:
+                continue
+            frame["crop_code"] = frame["crop_code"].astype(int)
+            frame["year"] = year
+            frames.append(frame[["OPENET_ID", "year", "crop_code"]])
+
+        if not frames:
+            return pd.DataFrame(columns=columns), matched_crop_names, "no_crop_fields"
+
+        return pd.concat(frames, ignore_index=True), matched_crop_names, "filter_applied"
+
     def _query_variable_by_location(
         self,
         *,
@@ -618,20 +590,20 @@ class LocationCropQuery:
         }
 
         if crop_filter:
-            year = pd.to_datetime(start_date).year
-            filtered_ids, matched_crop_names, crop_status = self._filter_field_ids_by_crop(
+            years = list(range(pd.to_datetime(start_date).year, pd.to_datetime(end_date).year + 1))
+            crop_membership, matched_crop_names, crop_status = self._build_crop_membership_frame(
                 openet_ids=openet_ids,
+                years=years,
                 crop_filter=crop_filter,
-                year=year,
             )
             if crop_status == "filter_applied":
-                openet_ids = filtered_ids
                 print(
-                    f"Filtered to {len(openet_ids)} {'/'.join(matched_crop_names)} fields "
+                    f"Matched {crop_membership['OPENET_ID'].nunique()} {'/'.join(matched_crop_names)} fields "
                     f"{'near' if location_type == 'city' else 'in'} {location}"
                 )
                 field_metadata["crop_filter"] = crop_filter
-                field_metadata["field_count_after_filter"] = len(openet_ids)
+                field_metadata["field_count_after_filter"] = int(crop_membership["OPENET_ID"].nunique())
+                field_metadata["matched_field_years"] = int(len(crop_membership))
                 field_metadata["matched_crop_names"] = matched_crop_names
             elif crop_status == "unknown_crop":
                 print(f"Warning: No crop found matching '{crop_filter}'")
@@ -646,7 +618,7 @@ class LocationCropQuery:
         else:
             print(f"Querying {variable} for {len(openet_ids)} fields {'near' if location_type == 'city' else 'in'} {location}")
 
-        if not openet_ids:
+        if field_metadata.get("no_data_reason") in {"unknown_crop", "no_crop_fields"}:
             field_metadata.setdefault("no_data_reason", "no_crop_fields" if crop_filter else "no_fields")
             if return_metadata:
                 return pd.DataFrame(), field_metadata
@@ -654,8 +626,6 @@ class LocationCropQuery:
 
         if return_metadata:
             for _, field in fields.head(min(20, len(fields))).iterrows():
-                if field["OPENET_ID"] not in openet_ids:
-                    continue
                 field_info = {
                     "id": field["OPENET_ID"],
                     "county": field.get("County", "Unknown"),
@@ -668,17 +638,14 @@ class LocationCropQuery:
                 field_metadata["truncated"] = True
                 field_metadata["total_fields"] = len(openet_ids)
 
-        if variable in DERIVED_ANNUAL_VARS:
-            result = self.get_annual_derived_timeseries(
-                openet_ids=openet_ids,
-                variable=variable,
-                start_date=start_date,
-                end_date=end_date,
-                crop_filter=crop_filter,
-                aggregation=aggregation,
-            )
-        else:
-            result = self.get_variable_timeseries(openet_ids, variable, start_date, end_date, aggregation)
+        result = self.get_variable_timeseries(
+            openet_ids=openet_ids,
+            variable=variable,
+            start_date=start_date,
+            end_date=end_date,
+            aggregation=aggregation,
+            crop_filter=crop_filter,
+        )
 
         if not result.empty:
             result["location"] = location
@@ -1102,7 +1069,7 @@ class LocationCropQuery:
                 frame = frame[frame[crop_col].isin(crop_codes)]
 
             if frame.empty:
-                value = 0.0
+                value = None
             elif variable in {"AREA", "ACRES_FTR_GEOM"}:
                 value = float(pd.to_numeric(frame["ACRES_FTR_GEOM"], errors="coerce").fillna(0).sum())
             elif variable == "CROP":
@@ -1113,11 +1080,11 @@ class LocationCropQuery:
                 value = float(pd.to_numeric(frame["IRR_EFF"], errors="coerce").mean())
             elif variable == "ITYPE":
                 mode_series = pd.to_numeric(frame["ITYPE"], errors="coerce").dropna().mode()
-                value = float(mode_series.iloc[0]) if not mode_series.empty else 0.0
+                value = float(mode_series.iloc[0]) if not mode_series.empty else None
             elif variable == "IRR_STATUS":
                 year_col = f"IRR_STATUS_{year}"
                 if irr_status_df.empty or year_col not in irr_status_df.columns:
-                    value = 0.0
+                    value = None
                 else:
                     merged = frame[["OPENET_ID"]].merge(
                         irr_status_df[["OPENET_ID", year_col]], on="OPENET_ID", how="left"
@@ -1130,7 +1097,7 @@ class LocationCropQuery:
             elif variable == "per_IRRIGATED":
                 year_col = f"per_IRRIGATED_{year % 100:02d}"
                 if per_irr_df.empty or year_col not in per_irr_df.columns:
-                    value = 0.0
+                    value = None
                 else:
                     merged = frame[["OPENET_ID"]].merge(
                         per_irr_df[["OPENET_ID", year_col]], on="OPENET_ID", how="left"
@@ -1138,7 +1105,7 @@ class LocationCropQuery:
                     vals = pd.to_numeric(merged[year_col], errors="coerce")
                     value = float(vals.mean())
             else:
-                value = 0.0
+                value = None
 
             rows.append({
                 "datetime": pd.Timestamp(f"{year}-01-01"),

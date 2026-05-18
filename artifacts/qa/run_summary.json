@@ -20,9 +20,10 @@
         "Farmland Area (acres)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/01_workbook_row_02/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/01_workbook_row_02/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/01_workbook_row_02/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/01_workbook_row_02/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/01_workbook_row_02/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/01_workbook_row_02/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/01_workbook_row_02/validation.json"
       }
     },
     {
@@ -42,9 +43,10 @@
         "Crop Category"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/02_workbook_row_03/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/02_workbook_row_03/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/02_workbook_row_03/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/02_workbook_row_03/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/02_workbook_row_03/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/02_workbook_row_03/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/02_workbook_row_03/validation.json"
       }
     },
     {
@@ -64,9 +66,10 @@
         "Irrigated Share (percent)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/03_workbook_row_04/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/03_workbook_row_04/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/03_workbook_row_04/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/03_workbook_row_04/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/03_workbook_row_04/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/03_workbook_row_04/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/03_workbook_row_04/validation.json"
       }
     },
     {
@@ -86,9 +89,10 @@
         "Irrigation System"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/04_workbook_row_05/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/04_workbook_row_05/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/04_workbook_row_05/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/04_workbook_row_05/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/04_workbook_row_05/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/04_workbook_row_05/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/04_workbook_row_05/validation.json"
       }
     },
     {
@@ -108,9 +112,10 @@
         "Irrigation Efficiency"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/05_workbook_row_06/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/05_workbook_row_06/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/05_workbook_row_06/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/05_workbook_row_06/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/05_workbook_row_06/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/05_workbook_row_06/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/05_workbook_row_06/validation.json"
       }
     },
     {
@@ -130,9 +135,10 @@
         "Irrigated Fields"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/06_workbook_row_07/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/06_workbook_row_07/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/06_workbook_row_07/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/06_workbook_row_07/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/06_workbook_row_07/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/06_workbook_row_07/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/06_workbook_row_07/validation.json"
       }
     },
     {
@@ -152,9 +158,10 @@
         "Crop Water Use (in)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/07_workbook_row_08/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/07_workbook_row_08/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/07_workbook_row_08/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/07_workbook_row_08/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/07_workbook_row_08/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/07_workbook_row_08/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/07_workbook_row_08/validation.json"
       }
     },
     {
@@ -174,9 +181,10 @@
         "Potential Crop Water Demand"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/08_workbook_row_09/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/08_workbook_row_09/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/08_workbook_row_09/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/08_workbook_row_09/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/08_workbook_row_09/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/08_workbook_row_09/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/08_workbook_row_09/validation.json"
       }
     },
     {
@@ -196,9 +204,10 @@
         "Usable Rainfall (in)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/09_workbook_row_10/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/09_workbook_row_10/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/09_workbook_row_10/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/09_workbook_row_10/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/09_workbook_row_10/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/09_workbook_row_10/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/09_workbook_row_10/validation.json"
       }
     },
     {
@@ -218,9 +227,10 @@
         "Precipitation (in)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/10_workbook_row_11/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/10_workbook_row_11/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/10_workbook_row_11/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/10_workbook_row_11/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/10_workbook_row_11/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/10_workbook_row_11/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/10_workbook_row_11/validation.json"
       }
     },
     {
@@ -240,9 +250,10 @@
         "Adjusted Irrigation Consumptive Use"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/11_workbook_row_12/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/11_workbook_row_12/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/11_workbook_row_12/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/11_workbook_row_12/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/11_workbook_row_12/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/11_workbook_row_12/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/11_workbook_row_12/validation.json"
       }
     },
     {
@@ -262,9 +273,10 @@
         "Net Irrigation Water Requirement"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/12_workbook_row_13/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/12_workbook_row_13/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/12_workbook_row_13/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/12_workbook_row_13/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/12_workbook_row_13/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/12_workbook_row_13/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/12_workbook_row_13/validation.json"
       }
     },
     {
@@ -284,9 +296,10 @@
         "Applied Water (acre-ft)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/13_workbook_row_14/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/13_workbook_row_14/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/13_workbook_row_14/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/13_workbook_row_14/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/13_workbook_row_14/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/13_workbook_row_14/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/13_workbook_row_14/validation.json"
       }
     },
     {
@@ -306,9 +319,10 @@
         "Net Irrigation Water Requirement"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/14_workbook_row_15/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/14_workbook_row_15/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/14_workbook_row_15/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/14_workbook_row_15/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/14_workbook_row_15/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/14_workbook_row_15/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/14_workbook_row_15/validation.json"
       }
     },
     {
@@ -328,9 +342,10 @@
         "24-Hour Precipitation (mm)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/15_workbook_row_16/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/15_workbook_row_16/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/15_workbook_row_16/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/15_workbook_row_16/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/15_workbook_row_16/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/15_workbook_row_16/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/15_workbook_row_16/validation.json"
       }
     },
     {
@@ -350,9 +365,10 @@
         "Average Temperature (deg F)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/16_workbook_row_17/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/16_workbook_row_17/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/16_workbook_row_17/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/16_workbook_row_17/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/16_workbook_row_17/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/16_workbook_row_17/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/16_workbook_row_17/validation.json"
       }
     },
     {
@@ -372,9 +388,10 @@
         "Average Humidity (percent)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/17_workbook_row_18/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/17_workbook_row_18/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/17_workbook_row_18/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/17_workbook_row_18/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/17_workbook_row_18/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/17_workbook_row_18/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/17_workbook_row_18/validation.json"
       }
     },
     {
@@ -394,9 +411,10 @@
         "Average Wind Speed (mph)"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/18_workbook_row_19/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/18_workbook_row_19/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/18_workbook_row_19/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/18_workbook_row_19/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/18_workbook_row_19/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/18_workbook_row_19/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/18_workbook_row_19/validation.json"
       }
     },
     {
@@ -416,9 +434,10 @@
         "Crop Coefficient"
       ],
       "artifacts": {
-        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/19_workbook_row_20/chart.png",
-        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/19_workbook_row_20/data.csv",
-        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/QA/19_workbook_row_20/spec.json"
+        "chart": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/19_workbook_row_20/chart.png",
+        "csv": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/19_workbook_row_20/data.csv",
+        "spec": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/19_workbook_row_20/spec.json",
+        "validation": "/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/artifacts/qa/19_workbook_row_20/validation.json"
       }
     }
   ]

@@ -149,6 +149,20 @@ npm test
 npm run build
 ```
 
+Testing/reporting helpers:
+
+```bash
+python scripts/run_regression_suite.py --output evaluation_results/regression_suite_latest
+python scripts/export_qa_bundle.py --output-dir artifacts/qa --clean
+python scripts/evaluate_prompts.py --output evaluation_results/prompt_benchmark_latest --prompt-dir prompts/variants --repeats 3
+python scripts/build_testing_report.py --regression-report evaluation_results/regression_suite_latest --qa-run-summary artifacts/qa/run_summary.json --workbook-eval evaluation_results/workbook_evaluation_20260415_071203.json --output evaluation_results/testing_story_latest
+```
+
+Notes:
+
+- `scripts/evaluate_prompts.py` benchmarks `prompts/interpretation.txt` and prompt variants against retained, stretch, and adversarial parser fixtures.
+- Prompt benchmarking needs a reachable local Ollama server at `OLLAMA_HOST` and the configured model, such as `gemma3:latest`.
+
 ## Handoff Docs
 
 - [docs/REPO_HANDOFF.md](/Users/mithunkarthikeyan/Desktop/Projects/SmartTap/docs/REPO_HANDOFF.md)

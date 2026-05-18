@@ -1,0 +1,284 @@
+{
+  "cases": [
+    {
+      "id": "retained_alfalfa_trend",
+      "query": "How has the amount of farmland planted with alfalfa changed in Morrow County between 2014 and 2022?",
+      "expected_status": "success-ready",
+      "scope": "retained",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "location_type",
+        "variables",
+        "crop_filter",
+        "start_date",
+        "end_date",
+        "evidence_pattern"
+      ],
+      "expected_partial_spec": {
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location_type": "county",
+        "variables": [
+          "ACRES_FTR_GEOM"
+        ],
+        "crop_filter": "Alfalfa",
+        "start_date": "2014-01-01",
+        "end_date": "2022-12-31",
+        "evidence_pattern": "trend_single"
+      },
+      "notes": "Retained yearly OpenET farmland trend."
+    },
+    {
+      "id": "retained_yamhill_crop_summary",
+      "query": "What crops were most commonly grown in Yamhill County between 2016 and 2023, especially corn?",
+      "expected_status": "success-ready",
+      "scope": "retained",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "location_type",
+        "variables",
+        "crop_filter",
+        "year"
+      ],
+      "expected_partial_spec": {
+        "task": "summarize_crops",
+        "dataset": "openet",
+        "location_type": "county",
+        "variables": [
+          "CROP"
+        ],
+        "crop_filter": "Corn",
+        "year": 2023
+      },
+      "notes": "Retained crop-ranking request with a highlighted crop constraint."
+    },
+    {
+      "id": "retained_deschutes_irrigated_share",
+      "query": "How did the share of irrigated fields growing potatoes change in Deschutes County from 2018 to 2024?",
+      "expected_status": "success-ready",
+      "scope": "retained",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "location_type",
+        "variables",
+        "crop_filter",
+        "start_date",
+        "end_date",
+        "evidence_pattern"
+      ],
+      "expected_partial_spec": {
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location_type": "county",
+        "variables": [
+          "per_IRRIGATED"
+        ],
+        "crop_filter": "Potato",
+        "start_date": "2018-01-01",
+        "end_date": "2024-12-31",
+        "evidence_pattern": "trend_single"
+      },
+      "notes": "Retained crop-filtered share trend should not collapse into a grouped request."
+    },
+    {
+      "id": "retained_wasco_usable_rainfall",
+      "query": "How much usable rainfall supported soybean fields in Wasco County between 2015 and 2021?",
+      "expected_status": "success-ready",
+      "scope": "retained",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "location_type",
+        "variables",
+        "crop_filter",
+        "start_date",
+        "end_date"
+      ],
+      "expected_partial_spec": {
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location_type": "county",
+        "variables": [
+          "Prz"
+        ],
+        "crop_filter": "Soybean",
+        "start_date": "2015-01-01",
+        "end_date": "2021-12-31"
+      },
+      "notes": "Retained no-data case that should still parse into the right OpenET query."
+    },
+    {
+      "id": "retained_salem_crop_coefficient",
+      "query": "How did crop growth characteristics change for grass seed near Salem between 2019 and 2023?",
+      "expected_status": "success-ready",
+      "scope": "retained",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "variables",
+        "crop_filter",
+        "start_date",
+        "end_date"
+      ],
+      "expected_partial_spec": {
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "variables": [
+          "Kc"
+        ],
+        "crop_filter": "Grass Seed",
+        "start_date": "2019-01-01",
+        "end_date": "2023-12-31"
+      },
+      "notes": "Retained AgriMet crop-coefficient request routed through station resolution."
+    },
+    {
+      "id": "stretch_corvallis_crop_summary",
+      "query": "What crops are grown in Corvallis?",
+      "expected_status": "success-ready",
+      "scope": "stretch",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "location_type",
+        "variables",
+        "year"
+      ],
+      "expected_partial_spec": {
+        "task": "summarize_crops",
+        "dataset": "openet",
+        "location_type": "city",
+        "variables": [
+          "CROP"
+        ],
+        "year": 2024
+      },
+      "notes": "Basic crop summary with implicit current-year default."
+    },
+    {
+      "id": "stretch_irrigation_efficiency_by_system",
+      "query": "Which irrigation systems showed the best efficiency for cotton farms in Polk County?",
+      "expected_status": "success-ready",
+      "scope": "stretch",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "location_type",
+        "variables",
+        "crop_filter",
+        "start_date",
+        "end_date"
+      ],
+      "expected_partial_spec": {
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "location_type": "county",
+        "variables": [
+          "IRR_EFF",
+          "ITYPE"
+        ],
+        "crop_filter": "Cotton",
+        "start_date": "2024-01-01",
+        "end_date": "2024-12-31"
+      },
+      "notes": "Grouped OpenET request with default 2024 window."
+    },
+    {
+      "id": "stretch_hermiston_irrigation_water_summary",
+      "query": "Show irrigation water for wheat in Hermiston",
+      "expected_status": "success-ready",
+      "scope": "stretch",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "location_type",
+        "variables",
+        "crop_filter",
+        "statistics"
+      ],
+      "expected_partial_spec": {
+        "task": "statistical_summary",
+        "dataset": "openet",
+        "location_type": "city",
+        "variables": [
+          "AW"
+        ],
+        "crop_filter": "Wheat",
+        "statistics": [
+          "mean"
+        ]
+      },
+      "notes": "Ambiguous 'show' prompt should default to statistical summary, not timeseries."
+    },
+    {
+      "id": "stretch_medford_peach_temperature",
+      "query": "How did air temperature evolve near Medford for peach orchards between 2015 and 2023?",
+      "expected_status": "success-ready",
+      "scope": "stretch",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "variables",
+        "crop_filter",
+        "start_date",
+        "end_date"
+      ],
+      "expected_partial_spec": {
+        "task": "visualize_timeseries",
+        "dataset": "agrimet",
+        "variables": [
+          "AVG_TMP"
+        ],
+        "crop_filter": "Peach",
+        "start_date": "2015-01-01",
+        "end_date": "2023-12-31"
+      },
+      "notes": "Non-local AgriMet city should still resolve to the weather-focused dataset."
+    },
+    {
+      "id": "adversarial_precipitation_missing_context",
+      "query": "Show precipitation",
+      "expected_status": "clarification",
+      "scope": "adversarial",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "variables"
+      ],
+      "expected_partial_spec": {
+        "task": "statistical_summary",
+        "dataset": "agrimet",
+        "variables": [
+          "PC"
+        ]
+      },
+      "notes": "Underspecified request should infer weather-station precipitation but still ask for location."
+    },
+    {
+      "id": "adversarial_eta_missing_location",
+      "query": "ETa in 2024",
+      "expected_status": "clarification",
+      "scope": "adversarial",
+      "must_match_fields": [
+        "task",
+        "dataset",
+        "variables",
+        "start_date",
+        "end_date"
+      ],
+      "expected_partial_spec": {
+        "task": "visualize_timeseries",
+        "dataset": "openet",
+        "variables": [
+          "ETa"
+        ],
+        "start_date": "2024-01-01",
+        "end_date": "2024-12-31"
+      },
+      "notes": "Date context is present, but the parser should still ask for a location."
+    }
+  ]
+}

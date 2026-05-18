@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 import sqlite3
 from functools import lru_cache
-from typing import Dict, List, TypedDict
+from typing import Dict, List, Optional, TypedDict
 
 import pandas as pd
 
@@ -29,6 +29,8 @@ class AgrimetLocationResolution(TypedDict, total=False):
     station_resolution_mode: str
     supported_local: bool
     distance_km: float
+    station_install_date: str
+    valid_for_requested_range: bool
 
 
 def supported_agrimet_locations() -> List[str]:
@@ -136,12 +138,58 @@ def _canonical_local_location(station_id: str) -> str | None:
     return normalize_location_text(prefix)
 
 
+def _requested_start_timestamp(start_date: str | None, end_date: str | None) -> pd.Timestamp | None:
+    if start_date:
+        return pd.to_datetime(start_date, errors="coerce")
+    if end_date:
+        return pd.to_datetime(end_date, errors="coerce")
+    return None
+
+
+def _row_install_timestamp(row: Dict[str, object]) -> pd.Timestamp | None:
+    install_date = row.get("install_date")
+    if isinstance(install_date, pd.Timestamp):
+        return install_date if pd.notna(install_date) else None
+    parsed = pd.to_datetime(install_date, errors="coerce")
+    return parsed if pd.notna(parsed) else None
+
+
+def _row_valid_for_requested_range(
+    row: Dict[str, object],
+    *,
+    start_date: str | None,
+    end_date: str | None,
+) -> bool:
+    requested_start = _requested_start_timestamp(start_date, end_date)
+    if requested_start is None or pd.isna(requested_start):
+        return True
+    install_date = _row_install_timestamp(row)
+    if install_date is None:
+        return True
+    return install_date <= requested_start
+
+
+def _resolution_sort_key(item: AgrimetLocationResolution) -> tuple[float, int, int, str]:
+    return (
+        0 if item.get("valid_for_requested_range", True) else 1,
+        float(item.get("distance_km") or 0.0),
+        0 if item.get("supported_local") else 1,
+        str(item.get("station_id") or ""),
+    )
+
+
+def _candidate_identity(item: AgrimetLocationResolution) -> tuple[str]:
+    return (str(item.get("station_id") or ""),)
+
+
 def _metadata_resolution(
     row: Dict[str, object],
     *,
     canonical_location: str,
     display_name: str,
     station_resolution_mode: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
     distance_km: float | None = None,
 ) -> AgrimetLocationResolution:
     site_id = normalize_location_text(row.get("station_id", ""))
@@ -149,6 +197,7 @@ def _metadata_resolution(
     supported_local = local_location is not None
     if local_location:
         canonical_location = local_location
+    install_ts = _row_install_timestamp(row)
 
     resolution: AgrimetLocationResolution = {
         "canonical_location": canonical_location,
@@ -159,13 +208,21 @@ def _metadata_resolution(
         "match_type": "station_metadata",
         "station_resolution_mode": station_resolution_mode,
         "supported_local": supported_local,
+        "station_install_date": install_ts.strftime("%Y-%m-%d") if install_ts is not None else "",
+        "valid_for_requested_range": _row_valid_for_requested_range(row, start_date=start_date, end_date=end_date),
     }
     if distance_km is not None:
         resolution["distance_km"] = round(float(distance_km), 2)
     return resolution
 
 
-def _direct_metadata_match(location: str, display_name: str) -> AgrimetLocationResolution | None:
+def _direct_metadata_match(
+    location: str,
+    display_name: str,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> AgrimetLocationResolution | None:
     normalized = normalize_location_text(location)
     county_normalized = strip_county_suffix(location)
     matches: List[AgrimetLocationResolution] = []
@@ -184,6 +241,8 @@ def _direct_metadata_match(location: str, display_name: str) -> AgrimetLocationR
                     canonical_location=normalized,
                     display_name=display_name,
                     station_resolution_mode="exact",
+                    start_date=start_date,
+                    end_date=end_date,
                 )
             )
             continue
@@ -195,6 +254,8 @@ def _direct_metadata_match(location: str, display_name: str) -> AgrimetLocationR
                     canonical_location=normalized,
                     display_name=display_name,
                     station_resolution_mode="nearest_city",
+                    start_date=start_date,
+                    end_date=end_date,
                 )
             )
             continue
@@ -206,18 +267,15 @@ def _direct_metadata_match(location: str, display_name: str) -> AgrimetLocationR
                     canonical_location=normalized,
                     display_name=display_name,
                     station_resolution_mode="county_fallback",
+                    start_date=start_date,
+                    end_date=end_date,
                 )
             )
 
     if not matches:
         return None
 
-    matches.sort(
-        key=lambda item: (
-            0 if item.get("supported_local") else 1,
-            str(item.get("station_id") or ""),
-        )
-    )
+    matches.sort(key=_resolution_sort_key)
     return matches[0]
 
 
@@ -229,9 +287,10 @@ def _nearest_station_resolution(
     longitude: float,
     county_name: str = "",
     station_resolution_mode: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
 ) -> AgrimetLocationResolution | None:
-    best_resolution: AgrimetLocationResolution | None = None
-    best_distance: float | None = None
+    candidates: List[AgrimetLocationResolution] = []
 
     for row in _metadata_rows():
         try:
@@ -246,29 +305,28 @@ def _nearest_station_resolution(
             canonical_location=canonical_location,
             display_name=display_name,
             station_resolution_mode=station_resolution_mode,
+            start_date=start_date,
+            end_date=end_date,
             distance_km=distance_km,
         )
         if county_name and not resolution.get("county_name"):
             resolution["county_name"] = county_name
+        candidates.append(resolution)
 
-        if best_resolution is None or best_distance is None:
-            best_resolution = resolution
-            best_distance = distance_km
-            continue
+    if not candidates:
+        return None
 
-        if distance_km < best_distance - 1e-9:
-            best_resolution = resolution
-            best_distance = distance_km
-            continue
-
-        if abs(distance_km - best_distance) <= 1e-9 and str(resolution.get("station_id") or "") < str(best_resolution.get("station_id") or ""):
-            best_resolution = resolution
-            best_distance = distance_km
-
-    return best_resolution
+    candidates.sort(key=_resolution_sort_key)
+    return candidates[0]
 
 
-def _city_centroid_resolution(location: str, display_name: str) -> AgrimetLocationResolution | None:
+def _city_centroid_resolution(
+    location: str,
+    display_name: str,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> AgrimetLocationResolution | None:
     profile = _field_point_city_profile(location)
     if not profile:
         return None
@@ -280,11 +338,19 @@ def _city_centroid_resolution(location: str, display_name: str) -> AgrimetLocati
         longitude=float(profile["longitude"]),
         county_name=str(profile.get("county_name") or ""),
         station_resolution_mode="centroid_nearest_station",
+        start_date=start_date,
+        end_date=end_date,
     )
     return resolution
 
 
-def _county_fallback_resolution(location: str, display_name: str) -> AgrimetLocationResolution | None:
+def _county_fallback_resolution(
+    location: str,
+    display_name: str,
+    *,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> AgrimetLocationResolution | None:
     county_name = strip_county_suffix(location)
     if not county_name:
         profile = _field_point_city_profile(location)
@@ -300,38 +366,84 @@ def _county_fallback_resolution(location: str, display_name: str) -> AgrimetLoca
     if not county_matches:
         return None
 
-    best = sorted(county_matches, key=lambda row: normalize_location_text(row.get("station_id", "")))[0]
+    best = sorted(
+        county_matches,
+        key=lambda row: (
+            0 if _row_valid_for_requested_range(row, start_date=start_date, end_date=end_date) else 1,
+            normalize_location_text(row.get("station_id", "")),
+        ),
+    )[0]
     return _metadata_resolution(
         best,
         canonical_location=normalize_location_text(location),
         display_name=display_name,
         station_resolution_mode="county_fallback",
+        start_date=start_date,
+        end_date=end_date,
     )
 
 
-def resolve_agrimet_location(location: str, *, local_only: bool = False) -> AgrimetLocationResolution | None:
+def resolve_agrimet_candidates(
+    location: str,
+    *,
+    local_only: bool = False,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> List[AgrimetLocationResolution]:
     display_name = display_location_name(location)
-    direct = _direct_metadata_match(location, display_name)
-    if direct is not None:
-        if local_only and direct.get("supported_local"):
-            return direct
-        if not local_only or not direct.get("supported_local"):
-            return direct
+    raw_candidates = [
+        _direct_metadata_match(location, display_name, start_date=start_date, end_date=end_date),
+        _city_centroid_resolution(location, display_name, start_date=start_date, end_date=end_date),
+        _county_fallback_resolution(location, display_name, start_date=start_date, end_date=end_date),
+    ]
 
-    centroid = _city_centroid_resolution(location, display_name)
-    if centroid is not None:
-        if local_only and centroid.get("supported_local"):
-            return centroid
-        if not local_only or not centroid.get("supported_local"):
-            return centroid
+    deduped: Dict[tuple[str, str], AgrimetLocationResolution] = {}
+    for candidate in raw_candidates:
+        if candidate is None:
+            continue
+        if local_only and not candidate.get("supported_local"):
+            continue
+        identity = _candidate_identity(candidate)
+        previous = deduped.get(identity)
+        if previous is None or _resolution_sort_key(candidate) < _resolution_sort_key(previous):
+            deduped[identity] = candidate
 
-    county_fallback = _county_fallback_resolution(location, display_name)
-    if county_fallback is not None:
-        if local_only and county_fallback.get("supported_local"):
-            return county_fallback
-        if not local_only or not county_fallback.get("supported_local"):
-            return county_fallback
+    candidates = sorted(deduped.values(), key=_resolution_sort_key)
+    if candidates:
+        return candidates
 
-    if local_only:
-        return direct or centroid or county_fallback
-    return direct or centroid or county_fallback
+    fallback_candidates = []
+    for candidate in raw_candidates:
+        if candidate is None:
+            continue
+        if local_only and not candidate.get("supported_local"):
+            fallback_candidates.append(candidate)
+            continue
+        fallback_candidates.append(candidate)
+
+    deduped_fallback: Dict[tuple[str, str], AgrimetLocationResolution] = {}
+    for candidate in fallback_candidates:
+        identity = _candidate_identity(candidate)
+        previous = deduped_fallback.get(identity)
+        if previous is None or _resolution_sort_key(candidate) < _resolution_sort_key(previous):
+            deduped_fallback[identity] = candidate
+    return sorted(deduped_fallback.values(), key=_resolution_sort_key)
+
+
+def resolve_agrimet_location(
+    location: str,
+    *,
+    local_only: bool = False,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> AgrimetLocationResolution | None:
+    candidates = resolve_agrimet_candidates(
+        location,
+        local_only=local_only,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    if candidates:
+        return candidates[0]
+
+    return None

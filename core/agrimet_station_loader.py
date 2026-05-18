@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, List, Optional
 
 import pandas as pd
@@ -21,6 +22,7 @@ COLUMN_ALIASES = {
     "county": ["county", "county_name", "County"],
     "latitude": ["latitude", "lat"],
     "longitude": ["longitude", "lon", "lng"],
+    "install": ["install", "prop_install", "installed", "open_date"],
 }
 
 LOCAL_FILE_PREFIX_OVERRIDES = {
@@ -102,6 +104,8 @@ def load_agrimet_station_metadata() -> pd.DataFrame:
     df["county"] = df["county"].map(_normalize_text)
     df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
     df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
+    df["install"] = normalized["install"].astype(str).str.strip()
+    df["install_date"] = pd.to_datetime(df["install"], format="mixed", errors="coerce")
 
     # Keep Oregon stations by default when state info exists.
     if (df["state"] != "").any():

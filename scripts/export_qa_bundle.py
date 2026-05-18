@@ -23,6 +23,7 @@ FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "acceptance_queries.json"
 DEFAULT_OUTPUT_DIR = QA_ARTIFACTS_DIR
 CASE_ID_RANGE = range(2, 21)
 CASE_IDS = {f"workbook_row_{index:02d}" for index in CASE_ID_RANGE}
+SUCCESS_STATUSES = {"success", "no_data"}
 
 
 def load_fixture_cases() -> List[Dict[str, Any]]:
@@ -88,6 +89,20 @@ def case_is_rewritten(case: Dict[str, Any]) -> bool:
     return case_original_prompt(case) != case_prompt(case)
 
 
+def executed_prompt_pass(status: str) -> bool:
+    return str(status or "").strip().lower() in SUCCESS_STATUSES
+
+
+def original_prompt_status(case: Dict[str, Any], executed_status: str) -> str:
+    if case_is_rewritten(case):
+        return "rewritten_not_evaluated"
+    return str(executed_status or "failed")
+
+
+def original_prompt_pass(case: Dict[str, Any], executed_status: str) -> bool:
+    return not case_is_rewritten(case) and executed_prompt_pass(executed_status)
+
+
 @contextmanager
 def temporary_cwd(path: Path) -> Iterator[None]:
     original = Path.cwd()
@@ -129,15 +144,20 @@ def prepare_case_output_dir(output_dir: Path, folder_name: str) -> Path:
 
 def artifact_sources(result: Dict[str, Any], run_dir: Path) -> Dict[str, Path]:
     files = result.get("files") or {}
-    return {
+    sources = {
         "chart.png": run_dir / str(files["png"]),
         "data.csv": run_dir / str(files["data"]),
         "spec.json": run_dir / str(files["resolved_query"]),
     }
+    if files.get("validation"):
+        sources["validation.json"] = run_dir / str(files["validation"])
+    return sources
 
 
 def copy_required_artifacts(result: Dict[str, Any], run_dir: Path, destination_dir: Path) -> None:
     for target_name, source_path in artifact_sources(result, run_dir).items():
+        if target_name == "validation.json" and not source_path.exists():
+            continue
         if not source_path.exists():
             raise FileNotFoundError(f"Missing artifact: {source_path}")
         shutil.copy2(source_path, destination_dir / target_name)
@@ -146,6 +166,7 @@ def copy_required_artifacts(result: Dict[str, Any], run_dir: Path, destination_d
 def enrich_case_spec(case_dir: Path, case: Dict[str, Any], result: Dict[str, Any]) -> None:
     spec_path = case_dir / "spec.json"
     payload = json.loads(spec_path.read_text(encoding="utf-8"))
+    result_status = str((result.get("summary") or {}).get("status") or "success")
     payload["prompt"] = case_prompt(case)
     payload["original_prompt"] = case_original_prompt(case)
     payload["rewritten"] = case_is_rewritten(case)
@@ -153,11 +174,16 @@ def enrich_case_spec(case_dir: Path, case: Dict[str, Any], result: Dict[str, Any
         payload["rewrite_reason"] = case_rewrite_reason(case)
     payload["qa_review"] = {
         "case_id": str(case["id"]),
+        "acceptance_target": "original_prompt",
         "executed_prompt": case_prompt(case),
         "original_prompt": case_original_prompt(case),
         "rewritten": case_is_rewritten(case),
         "rewrite_reason": case_rewrite_reason(case) or None,
-        "status": str((result.get("summary") or {}).get("status") or "success"),
+        "status": result_status,
+        "executed_prompt_status": result_status,
+        "executed_prompt_pass": executed_prompt_pass(result_status),
+        "original_prompt_status": original_prompt_status(case, result_status),
+        "original_prompt_pass": original_prompt_pass(case, result_status),
         "no_data_reason": (result.get("summary") or {}).get("no_data_reason"),
     }
     spec_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -177,6 +203,10 @@ def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) 
         "rewrite_reason": case_rewrite_reason(case) or None,
         "folder": folder_name,
         "status": "failed",
+        "executed_prompt_status": "failed",
+        "executed_prompt_pass": False,
+        "original_prompt_status": original_prompt_status(case, "failed"),
+        "original_prompt_pass": original_prompt_pass(case, "failed"),
         "error": None,
         "no_data_reason": None,
     }
@@ -200,6 +230,10 @@ def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) 
 
     result_summary = result.get("summary") or {}
     summary["status"] = str(result_summary.get("status") or "success")
+    summary["executed_prompt_status"] = summary["status"]
+    summary["executed_prompt_pass"] = executed_prompt_pass(summary["status"])
+    summary["original_prompt_status"] = original_prompt_status(case, summary["status"])
+    summary["original_prompt_pass"] = original_prompt_pass(case, summary["status"])
     summary["no_data_reason"] = result_summary.get("no_data_reason")
     summary["dataset"] = result_summary.get("dataset")
     summary["location"] = result_summary.get("location")
@@ -210,15 +244,30 @@ def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) 
         "csv": str(case_dir / "data.csv"),
         "spec": str(case_dir / "spec.json"),
     }
+    validation_path = case_dir / "validation.json"
+    if validation_path.exists():
+        summary["artifacts"]["validation"] = str(validation_path)
     return summary
 
 
 def write_run_summary(output_dir: Path, summaries: List[Dict[str, Any]]) -> None:
-    success_statuses = {"success", "no_data"}
     payload = {
         "total_cases": len(summaries),
-        "successful_cases": sum(1 for item in summaries if item["status"] in success_statuses),
-        "failed_cases": sum(1 for item in summaries if item["status"] not in success_statuses),
+        "acceptance_target": "original_prompt",
+        "successful_cases": sum(1 for item in summaries if item["status"] in SUCCESS_STATUSES),
+        "failed_cases": sum(1 for item in summaries if item["status"] not in SUCCESS_STATUSES),
+        "executed_prompt_successful_cases": sum(1 for item in summaries if item["executed_prompt_pass"]),
+        "executed_prompt_failed_cases": sum(1 for item in summaries if not item["executed_prompt_pass"]),
+        "original_prompt_successful_cases": sum(1 for item in summaries if item["original_prompt_pass"]),
+        "original_prompt_failed_cases": sum(
+            1
+            for item in summaries
+            if item["original_prompt_status"] not in {"rewritten_not_evaluated"} and not item["original_prompt_pass"]
+        ),
+        "original_prompt_not_evaluated_cases": sum(
+            1 for item in summaries if item["original_prompt_status"] == "rewritten_not_evaluated"
+        ),
+        "rewritten_cases": sum(1 for item in summaries if item["rewritten"]),
         "cases": summaries,
     }
     (output_dir / "run_summary.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -241,7 +290,7 @@ def export_cases(
     summaries = [run_case(case, output_dir, positions) for case in cases]
     write_run_summary(output_dir, summaries)
 
-    return 0 if all(item["status"] in {"success", "no_data"} for item in summaries) else 1
+    return 0 if all(item["status"] in SUCCESS_STATUSES for item in summaries) else 1
 
 
 def build_parser() -> argparse.ArgumentParser:

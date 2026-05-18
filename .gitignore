@@ -6,6 +6,7 @@ data/archive/*
 !data/archive/README.md
 report/
 AgWater-RAG-LLM/
+artifacts/
 
 # Runtime outputs and local evaluations
 outputs/

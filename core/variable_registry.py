@@ -11,6 +11,7 @@ class VariableMetadata:
     dataset: str
     label: str
     units: str = ""
+    default_aggregation: str = "mean"
     aliases: tuple[str, ...] = ()
 
     @property
@@ -29,6 +30,7 @@ def _metadata(
     label: str,
     *,
     units: str = "",
+    default_aggregation: str = "mean",
     aliases: Iterable[str] = (),
 ) -> VariableMetadata:
     return VariableMetadata(
@@ -36,6 +38,7 @@ def _metadata(
         dataset=dataset,
         label=label,
         units=units,
+        default_aggregation=default_aggregation,
         aliases=tuple(_clean(value) for value in aliases if _clean(value)),
     )
 
@@ -73,6 +76,7 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
         "agrimet",
         "24-Hour Precipitation",
         units="mm",
+        default_aggregation="raw",
         aliases=("24 hour precipitation", "24-hour precipitation", "rainfall accumulate", "rainfall accumulated", "rainfall accumulation"),
     ),
     "AVG_TMP": _metadata(
@@ -80,6 +84,7 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
         "agrimet",
         "Average Temperature",
         units="deg F",
+        default_aggregation="raw",
         aliases=("air temperature", "average air temperature", "temperature evolution"),
     ),
     "AVG_HUM": _metadata(
@@ -87,6 +92,7 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
         "agrimet",
         "Average Humidity",
         units="percent",
+        default_aggregation="raw",
         aliases=("humidity levels", "average humidity"),
     ),
     "AV_WSPD": _metadata(
@@ -94,12 +100,14 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
         "agrimet",
         "Average Wind Speed",
         units="mph",
+        default_aggregation="raw",
         aliases=("wind patterns", "wind speed patterns", "average wind speed"),
     ),
     "Kc": _metadata(
         "Kc",
         "agrimet",
         "Crop Coefficient",
+        default_aggregation="raw",
         aliases=("crop coefficient", "growth characteristic", "growth characteristics", "crop growth characteristics"),
     ),
     "ETa": _metadata(
@@ -134,6 +142,7 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
         "openet",
         "Applied Water",
         units="acre-ft",
+        default_aggregation="sum",
         aliases=(
             "applied water",
             "water applied",
@@ -152,6 +161,7 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
         "IRR_CU_VOLUMEadj",
         "openet",
         "Adjusted Irrigation Consumptive Use",
+        default_aggregation="sum",
         aliases=(
             "irrigation water consumed",
             "irrigation water was consumed",
@@ -162,12 +172,13 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
     ),
     "WS_C": _metadata("WS_C", "openet", "Water Stress Coefficient", aliases=("water stress", "stress coefficient")),
     "P_rz": _metadata("P_rz", "openet", "Root Zone Precipitation", units="in", aliases=("root zone precipitation", "root zone rain")),
-    "AREA": _metadata("AREA", "openet", "Farmland Area", units="acres", aliases=("area", "farmland area")),
+    "AREA": _metadata("AREA", "openet", "Farmland Area", units="acres", default_aggregation="sum", aliases=("area", "farmland area")),
     "ACRES_FTR_GEOM": _metadata(
         "ACRES_FTR_GEOM",
         "openet",
         "Farmland Area",
         units="acres",
+        default_aggregation="sum",
         aliases=("farmland planted", "farmland area", "acreage", "farm area", "largest farm areas"),
     ),
     "CROP": _metadata(
@@ -190,6 +201,7 @@ VARIABLE_REGISTRY: Dict[str, VariableMetadata] = {
         "IRR_STATUS",
         "openet",
         "Irrigated Fields",
+        default_aggregation="sum",
         aliases=("irrigated field", "irrigated fields", "irrigation presence"),
     ),
     "per_IRRIGATED": _metadata(
@@ -241,6 +253,22 @@ def variable_units(variable: str) -> str:
 def chart_label(variable: str) -> str:
     metadata = get_variable_metadata(variable)
     return metadata.chart_label if metadata else str(variable)
+
+
+def variable_default_aggregation(variable: str) -> str:
+    metadata = get_variable_metadata(variable)
+    return metadata.default_aggregation if metadata else "mean"
+
+
+def default_aggregation_for_variables(variables: Iterable[str]) -> str:
+    aggregations = [variable_default_aggregation(variable) for variable in variables if str(variable).strip()]
+    if not aggregations:
+        return "mean"
+
+    first = aggregations[0]
+    if all(value == first for value in aggregations):
+        return first
+    return "mean"
 
 
 def normalize_variable(variable: str) -> str:

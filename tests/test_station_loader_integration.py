@@ -52,6 +52,15 @@ class TestAgrimetStationLoader:
         for col in ["station_id", "title", "state", "nearest_city", "county", "latitude", "longitude"]:
             assert col in df.columns, f"Missing column: {col}"
 
+    def test_install_dates_are_parsed(self):
+        from core.agrimet_station_loader import load_agrimet_station_metadata
+
+        df = load_agrimet_station_metadata()
+        row = df[df["station_id"] == "ptro"].iloc[0]
+
+        assert row["install"] == "4/4/2024"
+        assert str(row["install_date"].date()) == "2024-04-04"
+
     def test_only_oregon_stations_loaded(self):
         """Loader filters to OR stations (state == 'or') by default."""
         from core.agrimet_station_loader import load_agrimet_station_metadata
@@ -277,6 +286,15 @@ class TestLocationResolver:
         from core.location_resolver import resolve_agrimet_location
         result = resolve_agrimet_location("corvallis", local_only=True)
         assert result is not None
+
+    def test_historical_resolution_skips_future_station_install(self):
+        from core.location_resolver import resolve_agrimet_location
+
+        result = resolve_agrimet_location("Pendleton", start_date="2014-01-01", end_date="2021-12-31")
+
+        assert result is not None
+        assert result["valid_for_requested_range"] is True
+        assert result["station_id"] != "ptro"
 
     def test_resolve_local_only_unknown_returns_none(self):
         from core.location_resolver import resolve_agrimet_location

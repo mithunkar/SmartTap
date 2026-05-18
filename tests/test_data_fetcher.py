@@ -13,13 +13,35 @@ import pandas as pd
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.data_fetcher import fetch_data, fetch_agrimet_data, fetch_openet_data, resolve_agrimet_location
+from core.data_fetcher import fetch_data, fetch_agrimet_data, fetch_openet_data
 from core.location_crop_query import LocationCropQuery
+from core.location_resolver import resolve_agrimet_location
 from core.validation import validate_payload
 
 
 class TestDataFetcher(unittest.TestCase):
     """Test data fetching functionality"""
+
+    @staticmethod
+    def _fake_agrimet_api_frame(
+        start: str = "2020-01-01",
+        periods: int = 5,
+    ) -> pd.DataFrame:
+        dates = pd.date_range(start, periods=periods, freq="D")
+        return pd.DataFrame(
+            {
+                "date": dates,
+                "datetime": dates,
+                "max_temp_f": [50.0 + index for index in range(periods)],
+                "min_temp_f": [30.0 + index for index in range(periods)],
+                "daily_precip_in": [0.1 * (index + 1) for index in range(periods)],
+                "solar_langley": [10.0 + index for index in range(periods)],
+                "wind_speed_mph": [4.0 + (index * 0.5) for index in range(periods)],
+                "rh": [45.0 + index for index in range(periods)],
+                "et": [1.0 + (index * 0.1) for index in range(periods)],
+                "kc": [0.5 + (index * 0.01) for index in range(periods)],
+            }
+        )
     
     def test_agrimet_basic_fetch(self):
         """Test basic AgriMet data fetching"""
@@ -32,7 +54,8 @@ class TestDataFetcher(unittest.TestCase):
             "interval": "daily"
         }
         
-        payload = fetch_agrimet_data(spec)
+        with patch("core.data_fetcher.fetch_agrimet_api_data", return_value=self._fake_agrimet_api_frame(periods=10)):
+            payload = fetch_agrimet_data(spec)
         
         # Verify structure
         self.assertIn("spec", payload)
@@ -49,7 +72,7 @@ class TestDataFetcher(unittest.TestCase):
         self.assertIn("OBM", first_record)
     
     def test_agrimet_missing_location(self):
-        """Test that invalid location raises error"""
+        """Invalid locations should return a clear API no-data payload."""
         spec = {
             "dataset": "agrimet",
             "location": "invalid_location",
@@ -57,9 +80,13 @@ class TestDataFetcher(unittest.TestCase):
             "start_date": "2020-01-01",
             "end_date": "2020-01-10"
         }
-        
-        with self.assertRaises(ValueError):
-            fetch_agrimet_data(spec)
+
+        with patch("core.data_fetcher.fetch_agrimet_api_data", side_effect=ValueError("Station not found for 'invalid_location'.")):
+            payload = fetch_agrimet_data(spec)
+
+        self.assertEqual(payload["data"]["records"], [])
+        self.assertEqual(payload["spec"]["source_mode"], "agrimet_api")
+        self.assertIn("No AgriMet API data was available", payload["spec"]["no_data_reason"])
     
     def test_agrimet_multiple_variables(self):
         """Test fetching multiple variables"""
@@ -72,7 +99,8 @@ class TestDataFetcher(unittest.TestCase):
             "interval": "daily"
         }
         
-        payload = fetch_agrimet_data(spec)
+        with patch("core.data_fetcher.fetch_agrimet_api_data", return_value=self._fake_agrimet_api_frame(periods=5)):
+            payload = fetch_agrimet_data(spec)
         records = payload["data"]["records"]
         
         # Verify all variables present
@@ -81,8 +109,8 @@ class TestDataFetcher(unittest.TestCase):
         self.assertIn("PC", first_record)
         self.assertIn("SR", first_record)
 
-    def test_agrimet_county_resolves_to_supported_local_station(self):
-        """County mentions should resolve through station metadata to a local AgriMet dataset."""
+    def test_agrimet_county_resolves_to_api_station(self):
+        """County mentions should resolve through station metadata and use the API runtime path."""
         match = resolve_agrimet_location("Benton County", local_only=True)
         self.assertIsNotNone(match)
         self.assertEqual(match["canonical_location"], "corvallis")
@@ -96,19 +124,16 @@ class TestDataFetcher(unittest.TestCase):
             "interval": "daily",
         }
 
-        payload = fetch_agrimet_data(spec)
+        with patch("core.data_fetcher.fetch_agrimet_api_data", return_value=self._fake_agrimet_api_frame(periods=3)):
+            payload = fetch_agrimet_data(spec)
         self.assertEqual(payload["spec"]["location"], "corvallis")
+        self.assertEqual(payload["spec"]["resolved_station_id"], "crvo")
+        self.assertEqual(payload["spec"]["source_mode"], "agrimet_api")
+        self.assertEqual(payload["spec"]["fetch_mode"], "api")
         self.assertEqual(payload["spec"]["station_id"], "crvo")
         self.assertEqual(len(payload["data"]["records"]), 3)
     
-    def test_openet_fetch(self):
-        """Test OpenET data fetching (if data exists)"""
-        from pathlib import Path
-        openet_file = Path(__file__).parent.parent / "data" / "openet" / "huc_combined_long.csv"
-        
-        if not openet_file.exists():
-            self.skipTest("OpenET data not available")
-        
+    def test_openet_legacy_huc_runtime_route_is_disabled(self):
         spec = {
             "dataset": "openet",
             "openet_geo": "huc8",
@@ -118,22 +143,9 @@ class TestDataFetcher(unittest.TestCase):
             "end_date": "2020-12-31",
             "interval": "monthly"
         }
-        
-        payload = fetch_openet_data(spec)
-        
-        # Verify structure
-        self.assertIn("spec", payload)
-        self.assertIn("data", payload)
-        self.assertIn("records", payload["data"])
-        
-        # Verify records exist
-        records = payload["data"]["records"]
-        self.assertGreater(len(records), 0, "Should have records")
-        
-        # Verify ETa field
-        first_record = records[0]
-        self.assertIn("datetime", first_record)
-        self.assertIn("ETa", first_record)
+
+        with self.assertRaises(ValueError):
+            fetch_openet_data(spec)
     
     def test_router_agrimet(self):
         """Test main fetch_data router for AgriMet"""
@@ -145,7 +157,8 @@ class TestDataFetcher(unittest.TestCase):
             "end_date": "2020-01-05"
         }
         
-        payload = fetch_data(spec)
+        with patch("core.data_fetcher.fetch_agrimet_api_data", return_value=self._fake_agrimet_api_frame(periods=5)):
+            payload = fetch_data(spec)
         self.assertIsNotNone(payload)
         self.assertEqual(payload["spec"]["dataset"], "agrimet")
     
@@ -160,7 +173,8 @@ class TestDataFetcher(unittest.TestCase):
             "interval": "daily"
         }
         
-        payload = fetch_agrimet_data(spec)
+        with patch("core.data_fetcher.fetch_agrimet_api_data", return_value=self._fake_agrimet_api_frame(start="2020-07-01", periods=3)):
+            payload = fetch_agrimet_data(spec)
         records = payload["data"]["records"]
         
         # Should have 3 days of data
@@ -228,6 +242,62 @@ class TestDataFetcher(unittest.TestCase):
             "No OpenET fields matched crop 'Cucumber' near Corvallis for 2016-01-01 to 2024-12-31.",
         )
 
+    def test_openet_volume_variables_default_to_sum_aggregation(self):
+        seen_aggregation = {}
+
+        class FakeLocationCropQuery:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def query_variable_by_county(self, **kwargs):
+                seen_aggregation["value"] = kwargs["aggregation"]
+                return pd.DataFrame({"datetime": pd.to_datetime(["2024-01-01"]), "AW": [1.25]}), {}
+
+        spec = {
+            "dataset": "openet",
+            "openet_geo": "location",
+            "location": "Umatilla County",
+            "location_type": "county",
+            "variables": ["AW"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+            "interval": "monthly",
+        }
+
+        with patch("core.data_fetcher.LocationCropQuery", FakeLocationCropQuery):
+            payload = fetch_openet_data(spec)
+
+        self.assertEqual(seen_aggregation["value"], "sum")
+        self.assertEqual(payload["data"]["records"][0]["AW"], 1.25)
+
+    def test_openet_rate_variables_default_to_mean_aggregation(self):
+        seen_aggregation = {}
+
+        class FakeLocationCropQuery:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def query_variable_by_county(self, **kwargs):
+                seen_aggregation["value"] = kwargs["aggregation"]
+                return pd.DataFrame({"datetime": pd.to_datetime(["2024-01-01"]), "ETa": [0.75]}), {}
+
+        spec = {
+            "dataset": "openet",
+            "openet_geo": "location",
+            "location": "Umatilla County",
+            "location_type": "county",
+            "variables": ["ETa"],
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+            "interval": "monthly",
+        }
+
+        with patch("core.data_fetcher.LocationCropQuery", FakeLocationCropQuery):
+            payload = fetch_openet_data(spec)
+
+        self.assertEqual(seen_aggregation["value"], "mean")
+        self.assertEqual(payload["data"]["records"][0]["ETa"], 0.75)
+
     def test_agrimet_pen_et_uses_api_fallback_even_for_local_station(self):
         spec = {
             "dataset": "agrimet",
@@ -255,8 +325,9 @@ class TestDataFetcher(unittest.TestCase):
             payload = fetch_agrimet_data(spec)
 
         mocked_api.assert_called_once()
-        self.assertEqual(payload["spec"]["fetch_mode"], "api_fallback")
-        self.assertEqual(payload["spec"]["station_id"], "ptro")
+        self.assertEqual(payload["spec"]["fetch_mode"], "api")
+        self.assertEqual(payload["spec"]["source_mode"], "agrimet_api")
+        self.assertEqual(payload["spec"]["station_id"], "echo")
         self.assertEqual(payload["data"]["records"][0]["PEN_ET"], 1.1)
 
     def test_agrimet_api_failure_returns_no_data_payload(self):
@@ -275,6 +346,83 @@ class TestDataFetcher(unittest.TestCase):
         self.assertEqual(payload["data"]["records"], [])
         self.assertIn("No AgriMet API data was available for Average Humidity (percent)", payload["spec"]["no_data_reason"])
         self.assertIn("API detail: Station not found for 'imbo'.", payload["spec"]["no_data_reason"])
+
+    def test_agrimet_api_fallback_tries_next_valid_candidate(self):
+        spec = {
+            "dataset": "agrimet",
+            "location": "Salem",
+            "variables": ["Kc"],
+            "start_date": "2019-01-01",
+            "end_date": "2023-12-31",
+        }
+
+        fake_api = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2019-01-01", "2019-01-02"]),
+                "kc": [0.62, 0.63],
+            }
+        )
+        candidates = [
+            {
+                "canonical_location": "salem",
+                "display_location": "Salem",
+                "station_id": "subo",
+                "station_title": "Sublimity, Oregon Weather Station",
+                "station_install_date": "2024-02-22",
+                "valid_for_requested_range": True,
+                "supported_local": False,
+            },
+            {
+                "canonical_location": "corvallis",
+                "display_location": "Salem",
+                "station_id": "crvo",
+                "station_title": "Corvallis, Oregon Agrimet Weather Station",
+                "station_install_date": "1990-02-27",
+                "valid_for_requested_range": True,
+                "supported_local": True,
+            },
+        ]
+
+        with patch("core.data_fetcher.resolve_agrimet_candidates", return_value=candidates):
+            with patch(
+                "core.data_fetcher.fetch_agrimet_api_data",
+                side_effect=[ValueError("Station not found for 'subo'."), fake_api],
+            ) as mocked_api:
+                payload = fetch_agrimet_data(spec)
+
+        self.assertEqual(mocked_api.call_count, 2)
+        self.assertEqual(payload["spec"]["station_id"], "crvo")
+        self.assertEqual(payload["spec"]["data_station_id"], "crvo")
+        self.assertEqual(payload["spec"]["api_station_candidates_tried"], ["subo", "crvo"])
+        self.assertIn("using crvo instead", " ".join(payload["spec"].get("notes") or []).lower())
+        self.assertEqual(payload["data"]["records"][0]["Kc"], 0.62)
+
+    def test_agrimet_invalid_station_range_returns_clear_no_data(self):
+        spec = {
+            "dataset": "agrimet",
+            "location": "Salem",
+            "variables": ["Kc"],
+            "start_date": "2019-01-01",
+            "end_date": "2023-12-31",
+        }
+        candidates = [
+            {
+                "canonical_location": "salem",
+                "display_location": "Salem",
+                "station_id": "subo",
+                "station_title": "Sublimity, Oregon Weather Station",
+                "station_install_date": "2024-02-22",
+                "valid_for_requested_range": False,
+                "supported_local": False,
+            }
+        ]
+
+        with patch("core.data_fetcher.resolve_agrimet_candidates", return_value=candidates):
+            payload = fetch_agrimet_data(spec)
+
+        self.assertEqual(payload["data"]["records"], [])
+        self.assertIn("No AgriMet station active near Salem could serve Crop Coefficient", payload["spec"]["no_data_reason"])
+        self.assertIn("installed 2024-02-22", payload["spec"]["no_data_reason"])
 
     def test_validate_payload_marks_all_null_requested_variables_unusable(self):
         payload = {
