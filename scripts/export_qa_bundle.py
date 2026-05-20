@@ -89,18 +89,32 @@ def case_is_rewritten(case: Dict[str, Any]) -> bool:
     return case_original_prompt(case) != case_prompt(case)
 
 
+def executed_prompt(case: Dict[str, Any], *, use_original_prompts_for_rewrites: bool = False) -> str:
+    if use_original_prompts_for_rewrites and case_is_rewritten(case):
+        return case_original_prompt(case)
+    return case_prompt(case)
+
+
+def executed_prompt_source(case: Dict[str, Any], *, use_original_prompts_for_rewrites: bool = False) -> str:
+    if use_original_prompts_for_rewrites and case_is_rewritten(case):
+        return "original_prompt"
+    return "prompt"
+
+
 def executed_prompt_pass(status: str) -> bool:
     return str(status or "").strip().lower() in SUCCESS_STATUSES
 
 
-def original_prompt_status(case: Dict[str, Any], executed_status: str) -> str:
-    if case_is_rewritten(case):
+def original_prompt_status(case: Dict[str, Any], executed_status: str, prompt_source: str = "prompt") -> str:
+    if case_is_rewritten(case) and prompt_source != "original_prompt":
         return "rewritten_not_evaluated"
     return str(executed_status or "failed")
 
 
-def original_prompt_pass(case: Dict[str, Any], executed_status: str) -> bool:
-    return not case_is_rewritten(case) and executed_prompt_pass(executed_status)
+def original_prompt_pass(case: Dict[str, Any], executed_status: str, prompt_source: str = "prompt") -> bool:
+    return original_prompt_status(case, executed_status, prompt_source) != "rewritten_not_evaluated" and executed_prompt_pass(
+        executed_status
+    )
 
 
 @contextmanager
@@ -163,50 +177,123 @@ def copy_required_artifacts(result: Dict[str, Any], run_dir: Path, destination_d
         shutil.copy2(source_path, destination_dir / target_name)
 
 
-def enrich_case_spec(case_dir: Path, case: Dict[str, Any], result: Dict[str, Any]) -> None:
+def write_failure_artifacts(
+    destination_dir: Path,
+    case: Dict[str, Any],
+    result: Dict[str, Any],
+    spec: Dict[str, Any],
+    *,
+    use_original_prompts_for_rewrites: bool = False,
+) -> None:
+    executed = executed_prompt(case, use_original_prompts_for_rewrites=use_original_prompts_for_rewrites)
+    prompt_source = executed_prompt_source(case, use_original_prompts_for_rewrites=use_original_prompts_for_rewrites)
+    error_message = (
+        result.get("error")
+        or result.get("clarification_prompt")
+        or result.get("confirmation_prompt")
+        or "Unknown export failure."
+    )
+
+    spec_payload = {
+        "prompt": case_prompt(case),
+        "original_prompt": case_original_prompt(case),
+        "rewritten": case_is_rewritten(case),
+        "rewrite_reason": case_rewrite_reason(case) or None,
+        "comparison_alignment": {
+            "target": "todd_original_workbook_queries",
+            "executed_prompt_source": prompt_source,
+            "executed_prompt": executed,
+            "used_original_prompt_for_execution": prompt_source == "original_prompt",
+        },
+        "spec": result.get("spec") or spec,
+        "summary": {
+            "status": "failed",
+            "error": error_message,
+        },
+    }
+    (destination_dir / "spec.json").write_text(json.dumps(spec_payload, indent=2), encoding="utf-8")
+
+    error_lines = [
+        "# Export Error",
+        "",
+        f"- Case ID: {case['id']}",
+        f"- Executed prompt source: {prompt_source}",
+        f"- Executed prompt: {executed}",
+        f"- Error: {error_message}",
+        "",
+    ]
+    (destination_dir / "ERROR.md").write_text("\n".join(error_lines), encoding="utf-8")
+
+
+def enrich_case_spec(
+    case_dir: Path,
+    case: Dict[str, Any],
+    result: Dict[str, Any],
+    *,
+    use_original_prompts_for_rewrites: bool = False,
+) -> None:
     spec_path = case_dir / "spec.json"
     payload = json.loads(spec_path.read_text(encoding="utf-8"))
     result_status = str((result.get("summary") or {}).get("status") or "success")
+    executed = executed_prompt(case, use_original_prompts_for_rewrites=use_original_prompts_for_rewrites)
+    prompt_source = executed_prompt_source(case, use_original_prompts_for_rewrites=use_original_prompts_for_rewrites)
     payload["prompt"] = case_prompt(case)
     payload["original_prompt"] = case_original_prompt(case)
     payload["rewritten"] = case_is_rewritten(case)
     if case_rewrite_reason(case):
         payload["rewrite_reason"] = case_rewrite_reason(case)
+    payload["comparison_alignment"] = {
+        "target": "todd_original_workbook_queries",
+        "executed_prompt_source": prompt_source,
+        "executed_prompt": executed,
+        "used_original_prompt_for_execution": prompt_source == "original_prompt",
+    }
     payload["qa_review"] = {
         "case_id": str(case["id"]),
         "acceptance_target": "original_prompt",
-        "executed_prompt": case_prompt(case),
+        "executed_prompt": executed,
+        "executed_prompt_source": prompt_source,
         "original_prompt": case_original_prompt(case),
         "rewritten": case_is_rewritten(case),
         "rewrite_reason": case_rewrite_reason(case) or None,
         "status": result_status,
         "executed_prompt_status": result_status,
         "executed_prompt_pass": executed_prompt_pass(result_status),
-        "original_prompt_status": original_prompt_status(case, result_status),
-        "original_prompt_pass": original_prompt_pass(case, result_status),
+        "original_prompt_status": original_prompt_status(case, result_status, prompt_source),
+        "original_prompt_pass": original_prompt_pass(case, result_status, prompt_source),
         "no_data_reason": (result.get("summary") or {}).get("no_data_reason"),
     }
     spec_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
-def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) -> Dict[str, Any]:
+def run_case(
+    case: Dict[str, Any],
+    output_dir: Path,
+    positions: Dict[str, int],
+    *,
+    use_original_prompts_for_rewrites: bool = False,
+) -> Dict[str, Any]:
     case_id = str(case["id"])
     folder_name = export_folder_name(case_id, positions)
     case_dir = prepare_case_output_dir(output_dir, folder_name)
     spec = build_seed_spec(case)
+    executed = executed_prompt(case, use_original_prompts_for_rewrites=use_original_prompts_for_rewrites)
+    prompt_source = executed_prompt_source(case, use_original_prompts_for_rewrites=use_original_prompts_for_rewrites)
 
     summary: Dict[str, Any] = {
         "case_id": case_id,
         "prompt": case_prompt(case),
         "original_prompt": case_original_prompt(case),
+        "executed_prompt": executed,
+        "executed_prompt_source": prompt_source,
         "rewritten": case_is_rewritten(case),
         "rewrite_reason": case_rewrite_reason(case) or None,
         "folder": folder_name,
         "status": "failed",
         "executed_prompt_status": "failed",
         "executed_prompt_pass": False,
-        "original_prompt_status": original_prompt_status(case, "failed"),
-        "original_prompt_pass": original_prompt_pass(case, "failed"),
+        "original_prompt_status": original_prompt_status(case, "failed", prompt_source),
+        "original_prompt_pass": original_prompt_pass(case, "failed", prompt_source),
         "error": None,
         "no_data_reason": None,
     }
@@ -214,7 +301,7 @@ def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) 
     with tempfile.TemporaryDirectory(prefix=f"qa_export_{case_id}_") as temp_dir:
         run_dir = Path(temp_dir)
         with temporary_cwd(run_dir):
-            result = process_query(case_prompt(case), spec=spec)
+            result = process_query(executed, spec=spec)
 
         if not result.get("success"):
             summary["error"] = (
@@ -223,17 +310,33 @@ def run_case(case: Dict[str, Any], output_dir: Path, positions: Dict[str, int]) 
                 or result.get("confirmation_prompt")
                 or "Unknown export failure."
             )
+            write_failure_artifacts(
+                case_dir,
+                case,
+                result,
+                spec,
+                use_original_prompts_for_rewrites=use_original_prompts_for_rewrites,
+            )
+            summary["artifacts"] = {
+                "spec": str(case_dir / "spec.json"),
+                "error": str(case_dir / "ERROR.md"),
+            }
             return summary
 
         copy_required_artifacts(result, run_dir, case_dir)
-        enrich_case_spec(case_dir, case, result)
+        enrich_case_spec(
+            case_dir,
+            case,
+            result,
+            use_original_prompts_for_rewrites=use_original_prompts_for_rewrites,
+        )
 
     result_summary = result.get("summary") or {}
     summary["status"] = str(result_summary.get("status") or "success")
     summary["executed_prompt_status"] = summary["status"]
     summary["executed_prompt_pass"] = executed_prompt_pass(summary["status"])
-    summary["original_prompt_status"] = original_prompt_status(case, summary["status"])
-    summary["original_prompt_pass"] = original_prompt_pass(case, summary["status"])
+    summary["original_prompt_status"] = original_prompt_status(case, summary["status"], prompt_source)
+    summary["original_prompt_pass"] = original_prompt_pass(case, summary["status"], prompt_source)
     summary["no_data_reason"] = result_summary.get("no_data_reason")
     summary["dataset"] = result_summary.get("dataset")
     summary["location"] = result_summary.get("location")
@@ -278,6 +381,7 @@ def export_cases(
     output_dir: Path,
     requested_case_ids: List[str] | None = None,
     clean: bool = False,
+    use_original_prompts_for_rewrites: bool = False,
 ) -> int:
     all_cases = load_fixture_cases()
     positions = case_positions(all_cases)
@@ -287,7 +391,15 @@ def export_cases(
         shutil.rmtree(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    summaries = [run_case(case, output_dir, positions) for case in cases]
+    summaries = [
+        run_case(
+            case,
+            output_dir,
+            positions,
+            use_original_prompts_for_rewrites=use_original_prompts_for_rewrites,
+        )
+        for case in cases
+    ]
     write_run_summary(output_dir, summaries)
 
     return 0 if all(item["status"] in SUCCESS_STATUSES for item in summaries) else 1
@@ -310,6 +422,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Delete and rebuild the output directory before exporting.",
     )
+    parser.add_argument(
+        "--use-original-prompts-for-rewrites",
+        action="store_true",
+        help="For rewritten workbook cases, execute the original workbook prompt instead of the rewritten QA prompt.",
+    )
     return parser
 
 
@@ -326,6 +443,7 @@ def main(argv: List[str] | None = None) -> int:
         output_dir=output_dir,
         requested_case_ids=requested_case_ids,
         clean=bool(args.clean),
+        use_original_prompts_for_rewrites=bool(args.use_original_prompts_for_rewrites),
     )
 
 
