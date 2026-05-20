@@ -13,8 +13,13 @@ AGRIMET_DIR = DATA_DIR / "agrimet"
 ARCHIVE_DATA_DIR = DATA_DIR / "archive"
 OPENET_DIR = DATA_DIR / "openet"
 
-FIELD_POINTS_GPKG = DATA_DIR / "field_points.gpkg"
-FULL_OREGON_GPKG = DATA_DIR / "preliminary_or_field_geopackage.gpkg"
+OPENET_FIELD_INDEX_PARQUET = OPENET_DIR / "field_index.parquet"
+OPENET_ANNUAL_DIR = OPENET_DIR / "annual"
+OPENET_MONTHLY_DIR = OPENET_DIR / "monthly"
+
+OPENET_SOURCE_FIELD_POINTS_GPKG = DATA_DIR / "field_points.gpkg"
+OPENET_SOURCE_FULL_OREGON_GPKG = DATA_DIR / "preliminary_or_field_geopackage.gpkg"
+
 OPENET_FIELD_COMBINED = OPENET_DIR / "field_combined_long.csv"
 OPENET_HUC_COMBINED = OPENET_DIR / "huc_combined_long.csv"
 

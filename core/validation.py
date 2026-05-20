@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sqlite3
 import re
 from typing import Any, Dict, List, cast
 
@@ -22,7 +21,8 @@ from .evidence_router import (
     route_evidence_pattern,
 )
 from .location_resolver import display_location_name, resolve_agrimet_location, supported_agrimet_locations
-from .paths import CDL_CODES_CSV, FIELD_POINTS_GPKG
+from .openet_store import OpenETParquetStore
+from .paths import CDL_CODES_CSV
 from .variable_registry import (
     AGRIMET_VARIABLES,
     OPENET_VARIABLES,
@@ -62,33 +62,10 @@ CROP_NAME_CANDIDATES = _load_crop_name_candidates()
 
 
 def _load_openet_location_candidates() -> tuple[List[str], List[str]]:
-    if not FIELD_POINTS_GPKG.exists():
-        return [], []
-
-    conn = sqlite3.connect(FIELD_POINTS_GPKG)
     try:
-        counties_df = pd.read_sql_query(
-            "SELECT DISTINCT County FROM field_points WHERE County IS NOT NULL AND County != '' ORDER BY County",
-            conn,
-        )
-        cities_df = pd.read_sql_query(
-            """
-            SELECT DISTINCT city_name FROM (
-                SELECT Nearest_City_1 AS city_name FROM field_points
-                UNION
-                SELECT Nearest_City_2 AS city_name FROM field_points
-            )
-            WHERE city_name IS NOT NULL AND city_name != ''
-            ORDER BY city_name
-            """,
-            conn,
-        )
-    finally:
-        conn.close()
-
-    counties = [str(value).strip() for value in counties_df["County"].dropna().tolist() if str(value).strip()]
-    cities = [str(value).split(",")[0].strip() for value in cities_df["city_name"].dropna().tolist() if str(value).strip()]
-    return counties, cities
+        return OpenETParquetStore().openet_location_candidates()
+    except (FileNotFoundError, ValueError):
+        return [], []
 
 
 OPENET_COUNTIES, OPENET_CITIES = _load_openet_location_candidates()

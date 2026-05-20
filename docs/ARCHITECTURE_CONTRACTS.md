@@ -89,6 +89,9 @@ Clarification and confirmation flows should keep the same outer result shape and
 ### Local-only data
 
 - `data/agrimet/*.csv`
+- `data/openet/field_index.parquet`
+- `data/openet/annual/*.parquet`
+- `data/openet/monthly/*/*.parquet`
 - `data/field_points.gpkg`
 - `data/preliminary_or_field_geopackage.gpkg`
 - `data/archive/preliminary_or_field_geopackage.7z`
@@ -106,7 +109,7 @@ The service layer owns orchestration. Dataset adapters own dataset-specific fetc
 
 Current active data-loading behavior:
 
-- OpenET location queries use the statewide GeoPackage path
+- OpenET location queries use normalized parquet runtime artifacts in `data/openet/`
 - AgriMet uses local CSVs when available and the API fallback only when required by variable/support constraints
 - legacy combined OpenET CSV loaders remain explicit non-location paths only
 

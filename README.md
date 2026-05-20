@@ -18,7 +18,7 @@ SmartTap is an evidence system, not a final-answer engine. Its job is to return 
 
 Data sources:
 
-- OpenET field and crop data from local GeoPackages
+- OpenET field and crop data from local parquet runtime artifacts
 - AgriMet weather data from local CSVs, with optional API fallback for unsupported local variables
 
 ## Repo Layout
@@ -111,21 +111,30 @@ Tracked reference assets now live in `reference/`:
 Required local data lives in `data/`:
 
 - `data/agrimet/*.csv`
-- `data/field_points.gpkg`
-- `data/preliminary_or_field_geopackage.gpkg`
+- `data/openet/field_index.parquet`
+- `data/openet/annual/*.parquet`
+- `data/openet/monthly/*/*.parquet`
 
 Optional:
 
 - `AGRIMET_USE_API=1` to prefer the AgriMet API when local CSV coverage is insufficient
+- `data/field_points.gpkg` and `data/preliminary_or_field_geopackage.gpkg` as offline source files for parquet materialization
 - `data/openet/field_combined_long.csv` and `data/openet/huc_combined_long.csv` only for legacy explicit non-location field/HUC fetch modes
 
-## OpenET Note
+## OpenET Setup
 
-The current statewide location-query path is GeoPackage-backed.
+The current statewide location-query path is parquet-backed.
 
-- City/county OpenET queries route through `core/location_crop_query.py`
-- That path depends on `data/field_points.gpkg` and `data/preliminary_or_field_geopackage.gpkg`
-- Archived CSV conversion scripts are not part of the active runtime path for location-based chat queries
+1. Acquire the source GeoPackages:
+   - `data/field_points.gpkg`
+   - `data/preliminary_or_field_geopackage.gpkg`
+2. Materialize the runtime parquet store:
+
+```bash
+python scripts/materialize_openet_parquet.py
+```
+
+Runtime OpenET queries then read only from `data/openet/`. The GeoPackages are offline source inputs for materialization and are not used by the active location-query runtime.
 
 ## Testing
 

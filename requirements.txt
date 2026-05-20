@@ -3,6 +3,7 @@
 
 # Data manipulation and analysis
 pandas>=2.0.0
+pyarrow>=15.0.0
 
 # Visualization
 matplotlib>=3.7.0

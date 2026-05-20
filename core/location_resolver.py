@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-import sqlite3
 from functools import lru_cache
 from typing import Dict, List, Optional, TypedDict
 
@@ -13,10 +12,7 @@ from .agrimet_station_loader import (
     load_agrimet_station_metadata,
     supported_agrimet_locations as _loader_supported_locations,
 )
-from .paths import FIELD_POINTS_GPKG
-
-
-FIELD_POINTS_PATH = FIELD_POINTS_GPKG
+from .openet_store import OpenETParquetStore
 
 
 class AgrimetLocationResolution(TypedDict, total=False):
@@ -78,32 +74,10 @@ def _metadata_rows() -> List[Dict[str, object]]:
 
 @lru_cache(maxsize=1)
 def _field_point_city_rows() -> pd.DataFrame:
-    if not FIELD_POINTS_PATH.exists():
-        return pd.DataFrame(columns=["County", "Latitude", "Longitude", "city_name"])
-
-    conn = sqlite3.connect(FIELD_POINTS_PATH)
     try:
-        query = """
-        SELECT County, Latitude, Longitude, Nearest_City_1 AS city_name
-        FROM field_points
-        WHERE Nearest_City_1 IS NOT NULL AND Nearest_City_1 != ''
-        UNION ALL
-        SELECT County, Latitude, Longitude, Nearest_City_2 AS city_name
-        FROM field_points
-        WHERE Nearest_City_2 IS NOT NULL AND Nearest_City_2 != ''
-        """
-        rows = pd.read_sql_query(query, conn)
-    finally:
-        conn.close()
-
-    if rows.empty:
-        return rows
-
-    rows["city_name"] = rows["city_name"].astype(str).str.split(",").str[0].map(normalize_location_text)
-    rows["County"] = rows["County"].astype(str).map(normalize_location_text)
-    rows["Latitude"] = pd.to_numeric(rows["Latitude"], errors="coerce")
-    rows["Longitude"] = pd.to_numeric(rows["Longitude"], errors="coerce")
-    return rows.dropna(subset=["Latitude", "Longitude"])
+        return OpenETParquetStore().city_rows()
+    except (FileNotFoundError, ValueError):
+        return pd.DataFrame(columns=["County", "Latitude", "Longitude", "city_name"])
 
 
 def _field_point_city_profile(location: str) -> Dict[str, str | float] | None:

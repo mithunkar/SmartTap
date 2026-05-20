@@ -20,6 +20,25 @@ Output:
 
 - `data/preliminary_or_field_geopackage.gpkg`
 
+### `materialize_openet_parquet.py`
+
+Builds the parquet runtime store used by SmartTap OpenET queries:
+
+```bash
+python scripts/materialize_openet_parquet.py
+```
+
+Inputs:
+
+- `data/field_points.gpkg`
+- `data/preliminary_or_field_geopackage.gpkg`
+
+Outputs:
+
+- `data/openet/field_index.parquet`
+- `data/openet/annual/*.parquet`
+- `data/openet/monthly/*/*.parquet`
+
 ### `fetch_agrimet_data.py`
 
 Downloads AgriMet weather CSVs into `data/agrimet/`:

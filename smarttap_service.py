@@ -26,7 +26,7 @@ from core.crop_utils import best_crop_keyword_match, canonicalize_crop_name
 from core.data_fetcher import fetch_data, fetch_grouped_data
 from core.location_resolver import supported_agrimet_locations
 from core.location_crop_query import LocationCropQuery, normalize_county_name
-from core.paths import FULL_OREGON_GPKG, RUNTIME_PARTNER_QUERIES_DIR
+from core.paths import RUNTIME_PARTNER_QUERIES_DIR
 from core.validation import CROP_NAME_CANDIDATES, validate_and_fix_spec, validate_payload
 from core.explanation import build_result_explanation
 from core.variable_registry import (
@@ -95,8 +95,6 @@ def _paths_with_suffix(paths: Dict[str, Path], suffix: str) -> Dict[str, Path]:
 
 
 def _init_location_query() -> LocationCropQuery:
-    if FULL_OREGON_GPKG.exists():
-        return LocationCropQuery(full_oregon_gpkg=str(FULL_OREGON_GPKG))
     return LocationCropQuery()
 
 

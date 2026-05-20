@@ -13,7 +13,6 @@ from .location_resolver import normalize_location_text, resolve_agrimet_candidat
 from . import location_resolver as _location_resolver
 from .paths import (
     AGRIMET_DIR,
-    FULL_OREGON_GPKG,
 )
 from .variable_registry import (
     AGRIMET_VARIABLES,
@@ -43,7 +42,7 @@ class OpenETAdapter:
         location_kinds=("city", "county", "field"),
         default_interval="monthly",
         supported_variables=tuple(sorted(OPENET_VARIABLES)),
-        notes="Runtime OpenET queries use the statewide GeoPackage only.",
+        notes="Runtime OpenET queries use normalized parquet artifacts only.",
     )
 
     def fetch(self, spec: QuerySpec) -> Dict[str, Any]:
@@ -486,14 +485,14 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     end_date = spec.get("end_date")
     interval = spec.get("interval", "monthly")
     spec = dict(spec)
-    spec["source_mode"] = "openet_gpkg"
+    spec["source_mode"] = "openet_parquet"
 
     if geo in {"location", "field"} and spec.get("location"):
         location = spec.get("location")
         location_type = (spec.get("location_type") or "city").lower()
         crop_filter = spec.get("crop_filter")
         aggregation = spec.get("aggregation") or default_aggregation_for_variables(variables)
-        query_system = LocationCropQuery(full_oregon_gpkg=str(FULL_OREGON_GPKG))
+        query_system = LocationCropQuery()
 
         results: Dict[str, pd.DataFrame] = {}
         no_data_reasons: List[str] = []
@@ -545,14 +544,14 @@ def fetch_openet_data(spec: Dict[str, Any]) -> Dict[str, Any]:
         wide = _apply_interval(wide, interval)
         return {"spec": spec, "data": {"records": wide.to_dict(orient="records")}}
     raise ValueError(
-        "Runtime OpenET queries require a city or county location and use the Oregon GeoPackage only. "
+        "Runtime OpenET queries require a city or county location and use the parquet runtime store only. "
         "Legacy field/HUC CSV routes are disabled."
     )
 
 
 def fetch_openet_grouped_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     spec = dict(spec)
-    spec["source_mode"] = "openet_gpkg"
+    spec["source_mode"] = "openet_parquet"
     location = spec.get("location")
     location_type = (spec.get("location_type") or "city").lower().strip()
     compare_by = str(spec.get("compare_by") or spec.get("split_by") or "").strip()
@@ -569,7 +568,7 @@ def fetch_openet_grouped_data(spec: Dict[str, Any]) -> Dict[str, Any]:
     if not value_variables:
         raise ValueError("Grouped OpenET queries require at least one numeric comparison variable.")
 
-    query_system = LocationCropQuery(full_oregon_gpkg=str(FULL_OREGON_GPKG))
+    query_system = LocationCropQuery()
     frame = query_system.query_grouped_variables_by_location(
         location=str(location),
         location_type=location_type,

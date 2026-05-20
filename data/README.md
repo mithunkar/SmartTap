@@ -4,9 +4,15 @@ This directory is for local-only heavy datasets and archives. These files are in
 
 Required files for the retained SmartTap surface:
 
+- `agrimet/*.csv`
+- `openet/field_index.parquet`
+- `openet/annual/*.parquet`
+- `openet/monthly/*/*.parquet`
+
+Offline source files for building the OpenET parquet runtime store:
+
 - `field_points.gpkg`
 - `preliminary_or_field_geopackage.gpkg`
-- `agrimet/*.csv`
 
 Optional legacy files:
 
@@ -16,6 +22,7 @@ Optional legacy files:
 Acquisition helpers:
 
 - `scripts/extract_oregon_data.py`
+- `scripts/materialize_openet_parquet.py`
 - `scripts/fetch_agrimet_data.py`
 
 Tracked reference/config assets were moved out of `data/` and into `reference/`.
